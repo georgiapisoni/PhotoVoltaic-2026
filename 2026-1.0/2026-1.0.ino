@@ -7,17 +7,21 @@
 #include <TimeLib.h>
 #include <Wire.h>
 
-Adafruit_ADS1115 ads;
+Adafruit_ADS1115 ads1;
+Adafruit_ADS1115 ads2;
+//ADC units addresses
+const uint8_t ADS1_ADDR = 0x48;
+const uint8_t ADS2_ADDR = 0x49;
+//ADC1 -> 01; ADC2 -> 02
+const uint8_t PAIR_01 = 0;        //ADC1
+const uint8_t PAIR_23 = 1;        //ADC2
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 //setting pins
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
 const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
-//SD
-//---SPI - MISO[D12], MOSI[D11], SCK[D13], CS[D10]
-//ADS
-//---CH1 [AIN0]&[AIN1]
-//---CH2 [AIN2]&[AIN3]
+
 
 uint16_t ldrRaw = 0;
 float ldrVolt = 0.0;
@@ -26,9 +30,12 @@ float ldrPct = 0.0;                     //percentage
 const uint8_t R1 = 220, R2 = 220;      //load resistance
 const float multiplier = 0.125;        //ADS1115 conversion factor mV/bit for GAIN_ONE
 
-int16_t raw1, raw2;
-float mV1 = 0, mV2 = 0;               //channel voltage
-float mA1 = 0, mA2 = 0;               //channel current
+//ADC
+const uint16_t R[4] = {220, 220, 220, 220};   //ADC resistance
+
+int16_t raw[4] = {0, 0, 0, 0};                // ADC counts
+int16_t mV[4]  = {0, 0, 0, 0};                // voltage (mV)
+int32_t uA[4]  = {0, 0, 0, 0};                // curent (mA)
 
 int8_t   lastMin = -1;
 const char* DATA_FILE = "medicao.csv";
@@ -38,9 +45,6 @@ void setup()
   tmElements_t time;
   Serial.begin(9600);
 
-  Serial.println("ADC Range: +/- 4.096V ---- 1 Bit = 0.125mV");
-  ads.setGain(GAIN_ONE);
-
   lcd.init();
   lcd.backlight();
   lcd.clear();
@@ -49,13 +53,26 @@ void setup()
   lcd.setCursor(0, 1);
   lcd.print("ligando sistema");
 
+
+  Serial.println("ADC Range: +/- 4.096V ---- 1 Bit = 0.125mV");
+  ads1.setGain(GAIN_ONE);
+  ads2.setGain(GAIN_ONE);
+
 //-----error checks----
-  if (!ads.begin())
+  if (!ads1.begin(ADS1_ADDR))
   {
-    Serial.println("Failed to initialize ADS.");
+    Serial.println("Failed to initialize ADC1.");
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro ADS");
+    lcd.print("Erro ADC1");
+    while (1);
+  }
+    if (!ads2.begin(ADS2_ADDR))
+  {
+    Serial.println("Failed to initialize ADC2.");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Erro ADC2");
     while (1);
   }
   if (!SD.begin(chipSelect))
@@ -97,10 +114,6 @@ void loop()
   tmElements_t time;
   if (RTC.read(time))
   {
-    //Serial.print("Ultimo minuto: ");
-    //Serial.print(lastMin);
-    //Serial.print(" | Minuto atual: ");
-    //Serial.println(time.Minute);
     if(time.Minute != lastMin)
     {
       lastMin = time.Minute;
@@ -131,33 +144,57 @@ void displayUpt()
   lcd.print("mV");
 }
 
+void ADC_read(Adafruit_ADS1115 &adc, uint8_t pairIndex, uint16_t resistor,
+                 int16_t &raw, int16_t &mV, int32_t &uA)
+{
+switch (pairIndex) 
+  {
+  case PAIR_01:
+    raw = adc.readADC_Differential_0_1();
+    break;
+
+  case PAIR_23:
+    raw = adc.readADC_Differential_2_3();
+    break;
+
+  default:
+    raw = 0;
+    return;
+  }
+  mV = raw * multiplier;                     
+  uA = (float)mV / resistor;
+
+  Serial.print(raw);
+  Serial.print(" (");
+  Serial.print(uA, 3);
+  Serial.print(" mA) | ");
+  Serial.print(mV, 1);
+  Serial.println(" mV");
+}
+
 void Leitura(const tmElements_t &time)
 {
   Serial.println("Iniciando leitura");
 
-  //CH 1
-  raw1 = ads.readADC_Differential_0_1();
-  mV1 = raw1 * multiplier;
-  mA1 = mV1 / R1;
+  //ADC 1 - CH 1
+  Serial.print("ADS 1");
   Serial.print("CH 1: ");
-  Serial.print(raw1);
-  Serial.print(" (");
-  Serial.print(mA1, 3);
-  Serial.print(" mA) | ");
-  Serial.print(mV1, 1);
-  Serial.println(" mV");
+  ADC_read(ads1, PAIR_01, R[0], raw[0], mV[0], mA[0]);
 
-  //CH 2
-  raw2 = ads.readADC_Differential_2_3();
-  mV2 = raw2 * multiplier;
-  mA2 = mV2 / R2;
+  //ADC 1 - CH 2
+  Serial.print("ADS 1");
   Serial.print("CH 2: ");
-  Serial.print(raw2);
-  Serial.print(" (");
-  Serial.print(mA2, 3);
-  Serial.print(" mA) | ");
-  Serial.print(mV2, 1);
-  Serial.println(" mV");
+  ADC_read(ads1, PAIR_23, R[1], raw[1], mV[1], mA[1]);
+
+  //ADC 2 - CH 1
+  Serial.print("ADS 2");
+  Serial.print("CH 1: ");
+  ADC_read(ads2, PAIR_01, R[2], raw[2], mV[2], mA[2]);
+
+  //ADC 1 - CH 2
+  Serial.print("ADS 2");
+  Serial.print("CH 2: ");
+  ADC_read(ads2, PAIR_23, R[3], raw[3], mV[3], mA[3]);
 
   //LDR
   ldrRaw = analogRead(LDR_PIN);
