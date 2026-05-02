@@ -271,8 +271,8 @@ void Leitura(const tmElements_t &time)
 
   //LDR
   ldrRaw = analogRead(LDR_PIN);
-  ldrVolt = (ldrRaw * 5.0) / 1023.0;
-  ldrPct = (ldrRaw * 100.0) / 1023.0;
+  ldrVolt = (ldrRaw * 3.3) / 1023.0;        //voltage of arduino connection
+  ldrPct = (ldrRaw * 100.0) / 1023.0;       //percentage
   Serial.print("LDR: ");
   Serial.print(ldrRaw);
   Serial.print(" | ");
