@@ -41,7 +41,7 @@ const char* DATA_FILE = "medicao.csv";
 //display
 uint8_t screen = 0;
 unsigned long lastScreenSwitch = 0;
-const unsigned long screenInterval = 2000; // 2 seconds
+const unsigned long screenInterval = 4000; // 2 seconds
 
 bool displayDirty = true;
 
@@ -166,16 +166,20 @@ void drawDisplay()
   lcd.setCursor(0, 0);
   lcd.print("C");
   lcd.print(chA + 1);
-  lcd.print(":");
+  lcd.print(" ");
   printFixed2_1(mA[chA]);
-  lcd.print("mA");
+  lcd.print("mA ");
+  printFixed2_1(mV[chA]);
+  lcd.print("mV");
 
   lcd.setCursor(0, 1);
   lcd.print("C");
   lcd.print(chB + 1);
-  lcd.print(":");
+  lcd.print(" ");
   printFixed2_1(mA[chB]);
-  lcd.print("mA");
+  lcd.print("mA ");
+  printFixed2_1(mV[chB]);
+  lcd.print("mV");
 }
 
 void displayTask()
