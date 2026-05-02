@@ -24,7 +24,7 @@ const float multiplier = 0.125;               //ADS1115 conversion factor mV/bit
 
 int16_t raw[4] = {0, 0, 0, 0};                // ADC counts
 float mV[4]  = {0, 0, 0, 0};                  // voltage (mV)
-int32_t mA[4]  = {0, 0, 0, 0};                // curent (mA)
+float mA[4]  = {0, 0, 0, 0};                // curent (mA)
 
 //setting pins
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
@@ -38,8 +38,14 @@ float ldrPct = 0.0;                     //percentage
 int8_t   lastMin = -1;
 const char* DATA_FILE = "medicao.csv";
 
-void setup()
-{
+//display
+uint8_t screen = 0;
+unsigned long lastScreenSwitch = 0;
+const unsigned long screenInterval = 2000; // 2 seconds
+
+bool displayDirty = true;
+
+void setup(){
   tmElements_t time;
   Serial.begin(9600);
 
@@ -53,8 +59,6 @@ void setup()
 
 
   Serial.println("ADC Range: +/- 4.096V ---- 1 Bit = 0.125mV");
-  ads1.setGain(GAIN_ONE);
-  ads2.setGain(GAIN_ONE);
 
 //-----error checks----
   if (!ads1.begin(ADS1_ADDR))
@@ -73,6 +77,10 @@ void setup()
     lcd.print("Erro ADC2");
     while (1);
   }
+
+  ads1.setGain(GAIN_ONE);
+  ads2.setGain(GAIN_ONE);
+
   if (!SD.begin(chipSelect))
   {
     pinMode(10, OUTPUT);
@@ -103,13 +111,15 @@ void setup()
     return;
   }
   if (dataFile.size() == 0)               //file empty
-  {dataFile.println("date,time,raw1,mV1,mA1,raw2,mV2,mA2,ldrRaw,ldrVolt,ldrPct");}
+  {dataFile.println("date,time,raw1,mV1,mA1,raw2,mV2,mA2,raw3,mV3,mA3,raw4,mV4,mA4,ldrRaw,ldrVolt,ldrPct");}
   dataFile.close();
 }
 
 void loop()
 {
   tmElements_t time;
+  displayTask();
+
   if (RTC.read(time))
   {
     if(time.Minute != lastMin)
@@ -117,57 +127,98 @@ void loop()
       lastMin = time.Minute;
       Leitura(time); 
     }
-    delay(500);
   }
   else
   {Serial.println("Failed to read RTC");}
 }
+void printFixed2_1(float value)
+{
+  if (value < 0) {
+    value = 0;
+  }
 
-void displayUpt()
+  if (value > 99.9) {
+    lcd.print("99,9");
+    return;
+  }
+
+  uint16_t scaled = (uint16_t)(value * 10.0 + 0.5); // rounded value * 10
+
+  uint8_t integerPart = scaled / 10;
+  uint8_t decimalPart = scaled % 10;
+
+  if (integerPart < 10) {
+    lcd.print('0');
+  }
+
+  lcd.print(integerPart);
+  lcd.print(',');
+  lcd.print(decimalPart);
+}
+
+void drawDisplay()
 {
   lcd.clear();
 
+  uint8_t chA = screen * 2;
+  uint8_t chB = chA + 1;
+
   lcd.setCursor(0, 0);
-  lcd.print("1:");
-  lcd.print(mA1, 1);
-  lcd.print("mA ");
-  lcd.print(mV1, 1);
-  lcd.print("mV");
+  lcd.print("C");
+  lcd.print(chA + 1);
+  lcd.print(":");
+  printFixed2_1(mA[chA]);
+  lcd.print("mA");
 
   lcd.setCursor(0, 1);
-  lcd.print("2:");
-  lcd.print(mA2, 1);
-  lcd.print("mA ");
-  lcd.print(mV2, 1);
-  lcd.print("mV");
+  lcd.print("C");
+  lcd.print(chB + 1);
+  lcd.print(":");
+  printFixed2_1(mA[chB]);
+  lcd.print("mA");
+}
+
+void displayTask()
+{
+  if (millis() - lastScreenSwitch >= screenInterval) {
+    lastScreenSwitch = millis();
+    screen = (screen + 1) % 2;
+    displayDirty = true;
+  }
+
+  if (displayDirty) {
+    drawDisplay();
+    displayDirty = false;
+  }
 }
 
 void ADC_read(Adafruit_ADS1115 &adc, uint8_t pairIndex, uint16_t resistor,
-                 int16_t &raw, int16_t &mV, int32_t &mA)
+                 int16_t &raw, float &mV, float &mA)
 {
-switch (pairIndex) 
-  {
-  case PAIR_01:
-    raw = adc.readADC_Differential_0_1();
-    break;
+  switch (pairIndex) {
+      case PAIR_01:
+        raw = adc.readADC_Differential_0_1();
+        break;
 
-  case PAIR_23:
-    raw = adc.readADC_Differential_2_3();
-    break;
+      case PAIR_23:
+        raw = adc.readADC_Differential_2_3();
+        break;
 
-  default:
-    raw = 0;
-    return;
-  }
-  mV = raw * multiplier;                     
-  mA = (float)mV / resistor;
+      default:
+        raw = 0;
+        mV = 0;
+        mA = 0;
+        return;
+    }
+    mV = raw * multiplier;                     
+    mA = mV / resistor;
 
-  Serial.print(raw);
-  Serial.print(" (");
-  Serial.print(mA, 3);
-  Serial.print(" mA) | ");
-  Serial.print(mV, 1);
-  Serial.println(" mV");
+    Serial.print(raw);
+    Serial.print(" (");
+    Serial.print(mA, 3);
+    Serial.print(" mA) | ");
+    Serial.print(mV, 1);
+    Serial.println(" mV");
 }
 
 void Leitura(const tmElements_t &time)
@@ -207,7 +258,7 @@ void Leitura(const tmElements_t &time)
   Serial.print(ldrPct, 1);
   Serial.println("%");
 
-  displayUpt();
+  displayDirty = true;
 
   //SD FILE WRITE
   File dataFile = SD.open(DATA_FILE, FILE_WRITE);
@@ -217,6 +268,7 @@ void Leitura(const tmElements_t &time)
     return;
   }
 
+  //DATE
   if (time.Day < 10) dataFile.write('0');
   dataFile.print(time.Day);
   dataFile.write('/');
@@ -226,6 +278,7 @@ void Leitura(const tmElements_t &time)
   dataFile.print(tmYearToCalendar(time.Year));
   dataFile.write(',');
 
+  //TIME
   if (time.Hour < 10) dataFile.write('0');
   dataFile.print(time.Hour);
   dataFile.write(':');
@@ -236,18 +289,17 @@ void Leitura(const tmElements_t &time)
   dataFile.print(time.Second);
   dataFile.write(',');
 
-  dataFile.print(raw1);
-  dataFile.write(',');
-  dataFile.print(mV1, 1);
-  dataFile.write(',');
-  dataFile.print(mA1, 3);
-  dataFile.write(',');
-  dataFile.print(raw2);
-  dataFile.write(',');
-  dataFile.print(mV2, 1);
-  dataFile.write(',');
-  dataFile.print(mA2, 3);
-  dataFile.write(',');
+  //ADC
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    dataFile.print(raw[i]);
+    dataFile.write(',');
+    dataFile.print(mV[i], 3);
+    dataFile.write(',');
+    dataFile.print(mA[i], 3);
+    dataFile.write(',');
+  }
+  //LDR
   dataFile.print(ldrRaw);
   dataFile.write(',');
   dataFile.print(ldrVolt, 2);
