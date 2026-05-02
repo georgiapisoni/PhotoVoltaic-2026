@@ -156,6 +156,26 @@ void printFixed2_1(float value)
   lcd.print(decimalPart);
 }
 
+void printFixed4_0(float value)
+{
+  if (value < 0) {
+    value = 0;
+  }
+
+  if (value > 9999) {
+    lcd.print("9999");
+    return;
+  }
+
+  uint16_t rounded = (uint16_t)(value + 0.5); // no decimals, rounded
+
+  if (rounded < 1000) lcd.print('0');
+  if (rounded < 100)  lcd.print('0');
+  if (rounded < 10)   lcd.print('0');
+
+  lcd.print(rounded);
+}
+
 void drawDisplay()
 {
   lcd.clear();
@@ -167,18 +187,18 @@ void drawDisplay()
   lcd.print("C");
   lcd.print(chA + 1);
   lcd.print(" ");
-  printFixed2_1(mA[chA] / 1000.0);
-  lcd.print("A ");
-  printFixed2_1(mV[chA] / 1000.0);
+  printFixed4_0(mA[chA]);        
+  lcd.print("mA ");
+  printFixed2_1(mV[chA] / 1000.0); 
   lcd.print("V");
 
   lcd.setCursor(0, 1);
   lcd.print("C");
   lcd.print(chB + 1);
   lcd.print(" ");
-  printFixed2_1(mA[chB] / 1000.0);
-  lcd.print("A ");
-  printFixed2_1(mV[chB] / 1000.0);
+  printFixed4_0(mA[chB]);     
+  lcd.print("mA ");
+  printFixed2_1(mV[chB] / 1000.0); 
   lcd.print("V");
 }
 
