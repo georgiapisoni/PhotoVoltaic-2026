@@ -7,6 +7,8 @@
 #include <TimeLib.h>
 #include <Wire.h>
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 Adafruit_ADS1115 ads1;
 Adafruit_ADS1115 ads2;
 //ADC units addresses
@@ -16,26 +18,22 @@ const uint8_t ADS2_ADDR = 0x49;
 const uint8_t PAIR_01 = 0;        //ADC1
 const uint8_t PAIR_23 = 1;        //ADC2
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+//ADC
+const uint16_t R[4] = {220, 220, 220, 220};   //ADC resistance
+const float multiplier = 0.125;               //ADS1115 conversion factor mV/bit for GAIN_ONE
+
+int16_t raw[4] = {0, 0, 0, 0};                // ADC counts
+float mV[4]  = {0, 0, 0, 0};                  // voltage (mV)
+int32_t mA[4]  = {0, 0, 0, 0};                // curent (mA)
 
 //setting pins
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
 const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
 
-
+//LDR
 uint16_t ldrRaw = 0;
 float ldrVolt = 0.0;
 float ldrPct = 0.0;                     //percentage
-
-const uint8_t R1 = 220, R2 = 220;      //load resistance
-const float multiplier = 0.125;        //ADS1115 conversion factor mV/bit for GAIN_ONE
-
-//ADC
-const uint16_t R[4] = {220, 220, 220, 220};   //ADC resistance
-
-int16_t raw[4] = {0, 0, 0, 0};                // ADC counts
-int16_t mV[4]  = {0, 0, 0, 0};                // voltage (mV)
-int32_t uA[4]  = {0, 0, 0, 0};                // curent (mA)
 
 int8_t   lastMin = -1;
 const char* DATA_FILE = "medicao.csv";
@@ -145,7 +143,7 @@ void displayUpt()
 }
 
 void ADC_read(Adafruit_ADS1115 &adc, uint8_t pairIndex, uint16_t resistor,
-                 int16_t &raw, int16_t &mV, int32_t &uA)
+                 int16_t &raw, int16_t &mV, int32_t &mA)
 {
 switch (pairIndex) 
   {
@@ -162,11 +160,11 @@ switch (pairIndex)
     return;
   }
   mV = raw * multiplier;                     
-  uA = (float)mV / resistor;
+  mA = (float)mV / resistor;
 
   Serial.print(raw);
   Serial.print(" (");
-  Serial.print(uA, 3);
+  Serial.print(mA, 3);
   Serial.print(" mA) | ");
   Serial.print(mV, 1);
   Serial.println(" mV");
