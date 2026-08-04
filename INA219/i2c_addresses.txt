@@ -1,0 +1,6 @@
+LCD       	 → 0x27
+RTC      	 → 0x68
+INA219 CH1  	 → 0x40
+INA219 CH2	 → 0x41
+INA219 CH3 	 → 0x44	
+INA219 CH4	 → 0x45
