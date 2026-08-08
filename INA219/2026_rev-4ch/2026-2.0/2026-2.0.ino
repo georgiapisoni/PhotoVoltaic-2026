@@ -45,13 +45,14 @@ const unsigned long screenInterval = 4000; // 4 seconds
 
 bool displayDirty = true;
 
-void showStartupStep(const char* serialMessage, const char* lcdMessage)
+void showStartupStep(const __FlashStringHelper* serialMessage,
+                     const __FlashStringHelper* lcdMessage)
 {
   Serial.println(serialMessage);
   Serial.flush();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Inicializando");
+  lcd.print(F("Inicializando"));
   lcd.setCursor(0, 1);
   lcd.print(lcdMessage);
 }
@@ -64,63 +65,63 @@ void setup(){
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Olá Bender");
+  lcd.print(F("Ola Bender"));
   lcd.setCursor(0, 1);
-  lcd.print("ligando sistema");
+  lcd.print(F("ligando sistema"));
 
 
-  Serial.println("4-channel INA219 monitor");
+  Serial.println(F("4-channel INA219 monitor"));
   Serial.flush();
 
 //-----error checks----
-  showStartupStep("Testing INA219 CH1 at 0x40...", "Test INA CH1");
+  showStartupStep(F("Testing INA219 CH1 at 0x40..."), F("Test INA CH1"));
   if (!ina219_ch1.begin())
   {
-    Serial.println("Failed to initialize INA219 CH1 at 0x40.");
+    Serial.println(F("Failed to initialize INA219 CH1 at 0x40."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro INA CH1");
+    lcd.print(F("Erro INA CH1"));
     while (1);
   }
-  showStartupStep("INA219 CH1 OK. Testing CH2 at 0x41...", "Test INA CH2");
+  showStartupStep(F("INA219 CH1 OK. Testing CH2 at 0x41..."), F("Test INA CH2"));
   if (!ina219_ch2.begin())
   {
-    Serial.println("Failed to initialize INA219 CH2 at 0x41.");
+    Serial.println(F("Failed to initialize INA219 CH2 at 0x41."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro INA CH2");
+    lcd.print(F("Erro INA CH2"));
     while (1);
   }
-  showStartupStep("INA219 CH2 OK. Testing CH3 at 0x44...", "Test INA CH3");
+  showStartupStep(F("INA219 CH2 OK. Testing CH3 at 0x44..."), F("Test INA CH3"));
   if (!ina219_ch3.begin())
   {
-    Serial.println("Failed to initialize INA219 CH3 at 0x44.");
+    Serial.println(F("Failed to initialize INA219 CH3 at 0x44."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro INA CH3");
+    lcd.print(F("Erro INA CH3"));
     while (1);
   }
-  showStartupStep("INA219 CH3 OK. Testing CH4 at 0x45...", "Test INA CH4");
+  showStartupStep(F("INA219 CH3 OK. Testing CH4 at 0x45..."), F("Test INA CH4"));
   if (!ina219_ch4.begin())
   {
-    Serial.println("Failed to initialize INA219 CH4 at 0x45.");
+    Serial.println(F("Failed to initialize INA219 CH4 at 0x45."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro INA CH4");
+    lcd.print(F("Erro INA CH4"));
     while (1);
   }
 
-  showStartupStep("All INA219 sensors OK. Testing SD...", "Testando SD");
+  showStartupStep(F("All INA219 sensors OK. Testing SD..."), F("Testando SD"));
   if (!SD.begin(chipSelect))
   {
     pinMode(10, OUTPUT);
-    Serial.println("Card failed or not present.");
+    Serial.println(F("Card failed or not present."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro SD");
+    lcd.print(F("Erro SD"));
     while (1);
   }
-  showStartupStep("SD OK. Testing RTC at 0x68...", "Testando RTC");
+  showStartupStep(F("SD OK. Testing RTC at 0x68..."), F("Testando RTC"));
   if (RTC.read(time))
   {
     lastMin = time.Minute;
@@ -129,28 +130,28 @@ void setup(){
   }
   else
   {
-    Serial.println("Failed to read RTC.");
+    Serial.println(F("Failed to read RTC."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro RTC");
+    lcd.print(F("Erro RTC"));
     while (1);
   }
-  Serial.println("RTC OK. Opening CSV file...");
+  Serial.println(F("RTC OK. Opening CSV file..."));
   Serial.flush();
   //SD FILE setup
   File dataFile = SD.open(DATA_FILE, FILE_WRITE);
   if (!dataFile)
   {
-    Serial.println("Error opening file");
+    Serial.println(F("Error opening file"));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Erro .csv");
+    lcd.print(F("Erro .csv"));
     return;
   }
   if (dataFile.size() == 0)               //file empty
-  {dataFile.println("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct");}
+  {dataFile.println(F("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct"));}
   dataFile.close();
-  Serial.println("Setup complete.");
+  Serial.println(F("Setup complete."));
   Serial.flush();
 }
 
@@ -171,7 +172,7 @@ void loop()
     }
   }
   else
-  {Serial.println("Failed to read RTC");}
+  {Serial.println(F("Failed to read RTC"));}
 }
 void printFixed2_1(float value)
 {
@@ -180,7 +181,7 @@ void printFixed2_1(float value)
   }
 
   if (value > 99.9) {
-    lcd.print("99,9");
+    lcd.print(F("99,9"));
     return;
   }
 
@@ -205,7 +206,7 @@ void printFixed4_0(float value)
   }
 
   if (value > 9999) {
-    lcd.print("9999");
+    lcd.print(F("9999"));
     return;
   }
 
@@ -228,7 +229,7 @@ void drawLdrScreen()
 {
   // Row 1 example: "LDR:1023 100.0%"
   lcd.setCursor(0, 0);
-  lcd.print("LDR:");
+  lcd.print(F("LDR:"));
   lcd.print(ldrRaw);
   lcd.print(' ');
   lcd.print(ldrPct, 1);
@@ -237,7 +238,7 @@ void drawLdrScreen()
   // Row 2 uses exactly 16 characters: "DD/MM/YYYY HH:MM".
   lcd.setCursor(0, 1);
   if (!displayTimeValid) {
-    lcd.print("RTC indisponivel");
+    lcd.print(F("RTC indisponivel"));
     return;
   }
 
@@ -265,22 +266,22 @@ void drawDisplay()
   uint8_t chB = chA + 1;
 
   lcd.setCursor(0, 0);
-  lcd.print("C");
+  lcd.print(F("C"));
   lcd.print(chA + 1);
-  lcd.print(" ");
+  lcd.print(F(" "));
   printFixed4_0(currentMA[chA]);
-  lcd.print("mA ");
+  lcd.print(F("mA "));
   printFixed2_1(busVoltageV[chA]);
-  lcd.print("V");
+  lcd.print(F("V"));
 
   lcd.setCursor(0, 1);
-  lcd.print("C");
+  lcd.print(F("C"));
   lcd.print(chB + 1);
-  lcd.print(" ");
+  lcd.print(F(" "));
   printFixed4_0(currentMA[chB]);
-  lcd.print("mA ");
+  lcd.print(F("mA "));
   printFixed2_1(busVoltageV[chB]);
-  lcd.print("V");
+  lcd.print(F("V"));
 }
 
 void displayTask()
@@ -304,43 +305,43 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
   busV = sensor.getBusVoltage_V();
   currentMAValue = sensor.getCurrent_mA();
 
-  Serial.print("shunt: ");
+  Serial.print(F("shunt: "));
   Serial.print(shuntMV, 3);
-  Serial.print(" mV | bus: ");
+  Serial.print(F(" mV | bus: "));
   Serial.print(busV, 3);
-  Serial.print(" V | current: ");
+  Serial.print(F(" V | current: "));
   Serial.print(currentMAValue, 3);
-  Serial.println(" mA");
+  Serial.println(F(" mA"));
 }
 
 void Leitura(const tmElements_t &time)
 {
-  Serial.println("Iniciando leitura");
+  Serial.println(F("Iniciando leitura"));
 
-  Serial.print("INA219 CH1 (0x40): ");
+  Serial.print(F("INA219 CH1 (0x40): "));
   INA219_read(ina219_ch1, shuntVoltageMV[0], busVoltageV[0], currentMA[0]);
 
-  Serial.print("INA219 CH2 (0x41): ");
+  Serial.print(F("INA219 CH2 (0x41): "));
   INA219_read(ina219_ch2, shuntVoltageMV[1], busVoltageV[1], currentMA[1]);
 
-  Serial.print("INA219 CH3 (0x44): ");
+  Serial.print(F("INA219 CH3 (0x44): "));
   INA219_read(ina219_ch3, shuntVoltageMV[2], busVoltageV[2], currentMA[2]);
 
-  Serial.print("INA219 CH4 (0x45): ");
+  Serial.print(F("INA219 CH4 (0x45): "));
   INA219_read(ina219_ch4, shuntVoltageMV[3], busVoltageV[3], currentMA[3]);
 
   // LDR
   ldrRaw = analogRead(LDR_PIN);
   ldrVolt = (ldrRaw * 3.3) / 1023.0;        //voltage of arduino connection
   ldrPct = (ldrRaw * 100.0) / 1023.0;       //percentage
-  Serial.print("LDR: ");
+  Serial.print(F("LDR: "));
   Serial.print(ldrRaw);
-  Serial.print(" | ");
+  Serial.print(F(" | "));
   Serial.print(ldrVolt, 2);
-  Serial.println(" V");
-  Serial.print(" | ");
+  Serial.println(F(" V"));
+  Serial.print(F(" | "));
   Serial.print(ldrPct, 1);
-  Serial.println("%");
+  Serial.println(F("%"));
 
   displayDirty = true;
 
@@ -348,7 +349,7 @@ void Leitura(const tmElements_t &time)
   File dataFile = SD.open(DATA_FILE, FILE_WRITE);
   if (!dataFile)
   {
-    Serial.println("Error opening file");
+    Serial.println(F("Error opening file"));
     return;
   }
 
