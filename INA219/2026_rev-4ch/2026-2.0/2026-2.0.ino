@@ -1,5 +1,5 @@
 //-----libraries-------
-#define ENABLE_INA219 1  // CH1-only INA219 test mode.
+#define ENABLE_INA219 1  // CH2-only INA219 test mode.
 
 #if ENABLE_INA219
 #include <Adafruit_INA219.h>
@@ -13,11 +13,11 @@
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// I2C addresses: LCD 0x27, RTC 0x68, and INA219 CH1 at 0x40.
+// I2C addresses: LCD 0x27, RTC 0x68, and INA219 CH2 at 0x41.
 #if ENABLE_INA219
-const uint8_t INA219_CH1_ADDR = 0x40;
+const uint8_t INA219_CH2_ADDR = 0x41;
 
-Adafruit_INA219 ina219_ch1(INA219_CH1_ADDR);
+Adafruit_INA219 ina219_ch2(INA219_CH2_ADDR);
 
 float shuntVoltageMV = 0.0;                    // voltage across INA219 shunt (mV)
 float busVoltageV = 0.0;                       // bus voltage relative to GND (V)
@@ -35,7 +35,7 @@ float ldrPct = 0.0;                     //percentage
 
 int8_t   lastMin = -1;
 #if ENABLE_INA219
-const char* DATA_FILE = "ina1test.csv";
+const char* DATA_FILE = "ina2test.csv";
 #else
 const char* DATA_FILE = "test.csv";
 #endif
@@ -107,20 +107,20 @@ void setup(){
   lcd.print(F("ligando sistema"));
 
 
-  Serial.println(F("INA219 CH1 + LDR/RTC/SD test"));
+  Serial.println(F("INA219 CH2 + LDR/RTC/SD test"));
   Serial.flush();
 
   scanI2CBus();
 
 //-----error checks----
 #if ENABLE_INA219
-  showStartupStep(F("Testing INA219 CH1 at 0x40..."), F("Test INA CH1"));
-  if (!ina219_ch1.begin())
+  showStartupStep(F("Testing INA219 CH2 at 0x41..."), F("Test INA CH2"));
+  if (!ina219_ch2.begin())
   {
-    Serial.println(F("Failed to initialize INA219 CH1 at 0x40."));
+    Serial.println(F("Failed to initialize INA219 CH2 at 0x41."));
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(F("Erro INA CH1"));
+    lcd.print(F("Erro INA CH2"));
     while (1);
   }
 #endif
@@ -165,7 +165,7 @@ void setup(){
   if (dataFile.size() == 0)               //file empty
   {
 #if ENABLE_INA219
-    dataFile.println(F("date,time,shuntmV1,busV1,currentmA1,ldrRaw,ldrVolt,ldrPct"));
+    dataFile.println(F("date,time,shuntmV2,busV2,currentmA2,ldrRaw,ldrVolt,ldrPct"));
 #else
     dataFile.println(F("date,time,ldrRaw,ldrVolt,ldrPct"));
 #endif
@@ -289,9 +289,9 @@ void drawDisplay()
     return;
   }
 
-  // CH1 test screen: current and bus voltage on row 1, shunt voltage on row 2.
+  // CH2 test screen: current and bus voltage on row 1, shunt voltage on row 2.
   lcd.setCursor(0, 0);
-  lcd.print(F("C1 "));
+  lcd.print(F("C2 "));
   printFixed4_0(currentMA);
   lcd.print(F("mA "));
   printFixed2_1(busVoltageV);
@@ -345,8 +345,8 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("Iniciando leitura"));
 
 #if ENABLE_INA219
-  Serial.print(F("INA219 CH1 (0x40): "));
-  INA219_read(ina219_ch1, shuntVoltageMV, busVoltageV, currentMA);
+  Serial.print(F("INA219 CH2 (0x41): "));
+  INA219_read(ina219_ch2, shuntVoltageMV, busVoltageV, currentMA);
 #endif
 
   // LDR
@@ -394,7 +394,7 @@ void Leitura(const tmElements_t &time)
   dataFile.write(',');
 
 #if ENABLE_INA219
-  // INA219 CH1
+  // INA219 CH2
   dataFile.print(shuntVoltageMV, 3);
   dataFile.write(',');
   dataFile.print(busVoltageV, 3);
