@@ -290,7 +290,7 @@ void drawLdrScreen()
   lcd.print(F("LDR:"));
   lcd.print(ldrRaw);
   lcd.print(' ');
-  lcd.print(ldrPct, 1);
+  lcd.print(ldrPct, 2);
   lcd.print('%');
 
   // Row 2 uses exactly 16 characters: "DD/MM/YYYY HH:MM".
@@ -402,7 +402,7 @@ void Leitura(const tmElements_t &time)
   Serial.print(ldrVolt, 2);
   Serial.println(F(" V"));
   Serial.print(F(" | "));
-  Serial.print(ldrPct, 1);
+  Serial.print(ldrPct, 2);
   Serial.println(F("%"));
 
   displayDirty = true;
@@ -453,7 +453,7 @@ void Leitura(const tmElements_t &time)
   dataFile.write(',');
   dataFile.print(ldrVolt, 2);
   dataFile.write(',');
-  dataFile.print(ldrPct, 1);
+  dataFile.print(ldrPct, 2);
   dataFile.println();
   dataFile.close();
 }
