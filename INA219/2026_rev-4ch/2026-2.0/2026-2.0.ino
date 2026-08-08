@@ -1,5 +1,9 @@
 //-----libraries-------
+#define ENABLE_INA219 0  // Change to 1 when the four INA219 sensors are connected.
+
+#if ENABLE_INA219
 #include <Adafruit_INA219.h>
+#endif
 #include <DS1307RTC.h>
 #include <LiquidCrystal_I2C.h>
 #include <SPI.h>
@@ -10,6 +14,7 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // I2C addresses: LCD 0x27, RTC 0x68, and one INA219 per channel.
+#if ENABLE_INA219
 const uint8_t INA219_CH1_ADDR = 0x40;
 const uint8_t INA219_CH2_ADDR = 0x41;
 const uint8_t INA219_CH3_ADDR = 0x44;
@@ -23,6 +28,7 @@ Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
 float shuntVoltageMV[4] = {0, 0, 0, 0};       // voltage across INA219 shunt (mV)
 float busVoltageV[4] = {0, 0, 0, 0};          // bus voltage relative to GND (V)
 float currentMA[4] = {0, 0, 0, 0};            // measured current (mA)
+#endif
 
 // setting pins
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
@@ -34,7 +40,11 @@ float ldrVolt = 0.0;
 float ldrPct = 0.0;                     //percentage
 
 int8_t   lastMin = -1;
+#if ENABLE_INA219
 const char* DATA_FILE = "ina219.csv";
+#else
+const char* DATA_FILE = "test.csv";
+#endif
 tmElements_t displayTime;
 bool displayTimeValid = false;
 
@@ -44,6 +54,12 @@ unsigned long lastScreenSwitch = 0;
 const unsigned long screenInterval = 4000; // 4 seconds
 
 bool displayDirty = true;
+
+void Leitura(const tmElements_t &time);
+#if ENABLE_INA219
+void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
+                 float &busV, float &currentMAValue);
+#endif
 
 void showStartupStep(const __FlashStringHelper* serialMessage,
                      const __FlashStringHelper* lcdMessage)
@@ -70,10 +86,11 @@ void setup(){
   lcd.print(F("ligando sistema"));
 
 
-  Serial.println(F("4-channel INA219 monitor"));
+  Serial.println(F("LDR/RTC/SD component test"));
   Serial.flush();
 
 //-----error checks----
+#if ENABLE_INA219
   showStartupStep(F("Testing INA219 CH1 at 0x40..."), F("Test INA CH1"));
   if (!ina219_ch1.begin())
   {
@@ -110,8 +127,9 @@ void setup(){
     lcd.print(F("Erro INA CH4"));
     while (1);
   }
+#endif
 
-  showStartupStep(F("All INA219 sensors OK. Testing SD..."), F("Testando SD"));
+  showStartupStep(F("Testing SD card..."), F("Testando SD"));
   if (!SD.begin(chipSelect))
   {
     pinMode(10, OUTPUT);
@@ -149,10 +167,19 @@ void setup(){
     return;
   }
   if (dataFile.size() == 0)               //file empty
-  {dataFile.println(F("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct"));}
+  {
+#if ENABLE_INA219
+    dataFile.println(F("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct"));
+#else
+    dataFile.println(F("date,time,ldrRaw,ldrVolt,ldrPct"));
+#endif
+  }
   dataFile.close();
   Serial.println(F("Setup complete."));
   Serial.flush();
+
+  // Take one immediate reading so the test screen is not left at zero.
+  Leitura(time);
 }
 
 void loop()
@@ -257,6 +284,10 @@ void drawDisplay()
 {
   lcd.clear();
 
+#if !ENABLE_INA219
+  drawLdrScreen();
+  return;
+#else
   if (screen == 2) {
     drawLdrScreen();
     return;
@@ -282,13 +313,18 @@ void drawDisplay()
   lcd.print(F("mA "));
   printFixed2_1(busVoltageV[chB]);
   lcd.print(F("V"));
+#endif
 }
 
 void displayTask()
 {
   if (millis() - lastScreenSwitch >= screenInterval) {
     lastScreenSwitch = millis();
+#if ENABLE_INA219
     screen = (screen + 1) % 3;
+#else
+    screen = 0;
+#endif
     displayDirty = true;
   }
 
@@ -298,6 +334,7 @@ void displayTask()
   }
 }
 
+#if ENABLE_INA219
 void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
                  float &busV, float &currentMAValue)
 {
@@ -313,11 +350,13 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
   Serial.print(currentMAValue, 3);
   Serial.println(F(" mA"));
 }
+#endif
 
 void Leitura(const tmElements_t &time)
 {
   Serial.println(F("Iniciando leitura"));
 
+#if ENABLE_INA219
   Serial.print(F("INA219 CH1 (0x40): "));
   INA219_read(ina219_ch1, shuntVoltageMV[0], busVoltageV[0], currentMA[0]);
 
@@ -329,6 +368,7 @@ void Leitura(const tmElements_t &time)
 
   Serial.print(F("INA219 CH4 (0x45): "));
   INA219_read(ina219_ch4, shuntVoltageMV[3], busVoltageV[3], currentMA[3]);
+#endif
 
   // LDR
   ldrRaw = analogRead(LDR_PIN);
@@ -374,7 +414,8 @@ void Leitura(const tmElements_t &time)
   dataFile.print(time.Second);
   dataFile.write(',');
 
-  // ADC - INA219 channels
+#if ENABLE_INA219
+  // INA219 channels
   for (uint8_t i = 0; i < 4; i++)
   {
     dataFile.print(shuntVoltageMV[i], 3);
@@ -384,6 +425,7 @@ void Leitura(const tmElements_t &time)
     dataFile.print(currentMA[i], 3);
     dataFile.write(',');
   }
+#endif
   //LDR
   dataFile.print(ldrRaw);
   dataFile.write(',');
