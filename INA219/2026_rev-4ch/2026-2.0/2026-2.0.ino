@@ -67,9 +67,36 @@ void showStartupStep(const __FlashStringHelper* serialMessage,
   lcd.print(lcdMessage);
 }
 
+void scanI2CBus()
+{
+  uint8_t devicesFound = 0;
+
+  Serial.println(F("Scanning I2C addresses..."));
+  for (uint8_t address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    uint8_t error = Wire.endTransmission();
+
+    if (error == 0) {
+      Serial.print(F("I2C device found at 0x"));
+      if (address < 0x10) Serial.print('0');
+      Serial.println(address, HEX);
+      devicesFound++;
+    } else if (error == 4) {
+      Serial.print(F("Unknown I2C error at 0x"));
+      if (address < 0x10) Serial.print('0');
+      Serial.println(address, HEX);
+    }
+  }
+
+  Serial.print(F("I2C scan complete. Devices found: "));
+  Serial.println(devicesFound);
+  Serial.flush();
+}
+
 void setup(){
   tmElements_t time;
   Serial.begin(9600);
+  Wire.begin();
 
   lcd.init();
   lcd.backlight();
@@ -82,6 +109,8 @@ void setup(){
 
   Serial.println(F("INA219 CH1 + LDR/RTC/SD test"));
   Serial.flush();
+
+  scanI2CBus();
 
 //-----error checks----
 #if ENABLE_INA219
