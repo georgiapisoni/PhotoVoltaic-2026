@@ -45,6 +45,17 @@ const unsigned long screenInterval = 4000; // 4 seconds
 
 bool displayDirty = true;
 
+void showStartupStep(const char* serialMessage, const char* lcdMessage)
+{
+  Serial.println(serialMessage);
+  Serial.flush();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Inicializando");
+  lcd.setCursor(0, 1);
+  lcd.print(lcdMessage);
+}
+
 void setup(){
   tmElements_t time;
   Serial.begin(9600);
@@ -53,14 +64,16 @@ void setup(){
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Ola Bender");
+  lcd.print("Olá Bender");
   lcd.setCursor(0, 1);
   lcd.print("ligando sistema");
 
 
   Serial.println("4-channel INA219 monitor");
+  Serial.flush();
 
 //-----error checks----
+  showStartupStep("Testing INA219 CH1 at 0x40...", "Test INA CH1");
   if (!ina219_ch1.begin())
   {
     Serial.println("Failed to initialize INA219 CH1 at 0x40.");
@@ -69,6 +82,7 @@ void setup(){
     lcd.print("Erro INA CH1");
     while (1);
   }
+  showStartupStep("INA219 CH1 OK. Testing CH2 at 0x41...", "Test INA CH2");
   if (!ina219_ch2.begin())
   {
     Serial.println("Failed to initialize INA219 CH2 at 0x41.");
@@ -77,6 +91,7 @@ void setup(){
     lcd.print("Erro INA CH2");
     while (1);
   }
+  showStartupStep("INA219 CH2 OK. Testing CH3 at 0x44...", "Test INA CH3");
   if (!ina219_ch3.begin())
   {
     Serial.println("Failed to initialize INA219 CH3 at 0x44.");
@@ -85,6 +100,7 @@ void setup(){
     lcd.print("Erro INA CH3");
     while (1);
   }
+  showStartupStep("INA219 CH3 OK. Testing CH4 at 0x45...", "Test INA CH4");
   if (!ina219_ch4.begin())
   {
     Serial.println("Failed to initialize INA219 CH4 at 0x45.");
@@ -94,6 +110,7 @@ void setup(){
     while (1);
   }
 
+  showStartupStep("All INA219 sensors OK. Testing SD...", "Testando SD");
   if (!SD.begin(chipSelect))
   {
     pinMode(10, OUTPUT);
@@ -103,6 +120,7 @@ void setup(){
     lcd.print("Erro SD");
     while (1);
   }
+  showStartupStep("SD OK. Testing RTC at 0x68...", "Testando RTC");
   if (RTC.read(time))
   {
     lastMin = time.Minute;
@@ -117,6 +135,8 @@ void setup(){
     lcd.print("Erro RTC");
     while (1);
   }
+  Serial.println("RTC OK. Opening CSV file...");
+  Serial.flush();
   //SD FILE setup
   File dataFile = SD.open(DATA_FILE, FILE_WRITE);
   if (!dataFile)
@@ -130,6 +150,8 @@ void setup(){
   if (dataFile.size() == 0)               //file empty
   {dataFile.println("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct");}
   dataFile.close();
+  Serial.println("Setup complete.");
+  Serial.flush();
 }
 
 void loop()
