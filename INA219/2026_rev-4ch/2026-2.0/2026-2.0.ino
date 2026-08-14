@@ -32,6 +32,11 @@ float currentMA[4] = {0, 0, 0, 0};
 // Hardware calibration: measured INA219 bus voltage is one-tenth
 // of the voltage confirmed at VIN- relative to GND.
 const float BUS_VOLTAGE_SCALE = 10.0;
+
+// The built-in 0.1 ohm shunt is paralleled with another 0.1 ohm shunt.
+// Equivalent resistance is 0.05 ohm, so the library's default 0.1 ohm
+// current result must be multiplied by 0.1 / 0.05 = 2.
+const float CURRENT_SCALE = 2.0;
 #endif
 
 // setting pins
@@ -366,7 +371,7 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
 {
   shuntMV = sensor.getShuntVoltage_mV();
   busV = sensor.getBusVoltage_V() * BUS_VOLTAGE_SCALE;
-  currentMAValue = sensor.getCurrent_mA();
+  currentMAValue = sensor.getCurrent_mA() * CURRENT_SCALE;
 
   Serial.print(F("shunt: "));
   Serial.print(shuntMV, 3);
