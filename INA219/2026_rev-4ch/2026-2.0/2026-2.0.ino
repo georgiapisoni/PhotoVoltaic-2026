@@ -28,6 +28,10 @@ Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
 float shuntVoltageMV[4] = {0, 0, 0, 0};
 float busVoltageV[4] = {0, 0, 0, 0};
 float currentMA[4] = {0, 0, 0, 0};
+
+// Hardware calibration: measured INA219 bus voltage is one-tenth
+// of the voltage confirmed at VIN- relative to GND.
+const float BUS_VOLTAGE_SCALE = 10.0;
 #endif
 
 // setting pins
@@ -361,7 +365,7 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
                  float &busV, float &currentMAValue)
 {
   shuntMV = sensor.getShuntVoltage_mV();
-  busV = sensor.getBusVoltage_V();
+  busV = sensor.getBusVoltage_V() * BUS_VOLTAGE_SCALE;
   currentMAValue = sensor.getCurrent_mA();
 
   Serial.print(F("shunt: "));
