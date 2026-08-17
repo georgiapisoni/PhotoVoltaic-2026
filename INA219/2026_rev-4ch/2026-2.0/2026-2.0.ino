@@ -42,7 +42,8 @@ const float CURRENT_SCALE = 2.0;
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
 const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
 // Each IRLZ44N gate also requires a physical 10k resistor to its source.
-const uint8_t MOSFET_GATE_PINS[4] = {2, 3, 4, 5};
+// Array order is CH1, CH2, CH3, CH4.
+const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 const unsigned long ISC_SETTLE_MS = 250;
 
 // LDR
