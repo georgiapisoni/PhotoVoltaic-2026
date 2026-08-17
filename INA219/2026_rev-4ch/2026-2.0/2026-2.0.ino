@@ -28,10 +28,9 @@ Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
 float shuntVoltageMV[4] = {0, 0, 0, 0};
 float busVoltageV[4] = {0, 0, 0, 0};
 float currentMA[4] = {0, 0, 0, 0};
-
-// Hardware calibration: measured INA219 bus voltage is one-tenth
-// of the voltage confirmed at VIN- relative to GND.
-const float BUS_VOLTAGE_SCALE = 10.0;
+float iscShuntVoltageMV[4] = {0, 0, 0, 0};
+float iscBusVoltageV[4] = {0, 0, 0, 0};
+float iscCurrentMA[4] = {0, 0, 0, 0};
 
 // The built-in 0.1 ohm shunt is paralleled with another 0.1 ohm shunt.
 // Equivalent resistance is 0.05 ohm, so the library's default 0.1 ohm
@@ -42,6 +41,9 @@ const float CURRENT_SCALE = 2.0;
 // setting pins
 const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
 const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
+// Each IRLZ44N gate also requires a physical 10k resistor to its source.
+const uint8_t MOSFET_GATE_PINS[4] = {2, 3, 4, 5};
+const unsigned long ISC_SETTLE_MS = 250;
 
 // LDR
 uint16_t ldrRaw = 0;
@@ -50,7 +52,7 @@ float ldrPct = 0.0;                     //percentage
 
 int8_t   lastMin = -1;
 #if ENABLE_INA219
-const char* DATA_FILE = "ina219.csv";
+const char* DATA_FILE = "pv_isc.csv";
 #else
 const char* DATA_FILE = "test.csv";
 #endif
@@ -108,9 +110,27 @@ void scanI2CBus()
   Serial.flush();
 }
 
+void setShortCircuit(bool enabled)
+{
+  uint8_t gateLevel = enabled ? HIGH : LOW;
+  for (uint8_t i = 0; i < 4; i++) {
+    digitalWrite(MOSFET_GATE_PINS[i], gateLevel);
+  }
+
+  Serial.println(enabled ? F("Short circuit ON") : F("Short circuit OFF"));
+  Serial.flush();
+}
+
 void setup(){
   tmElements_t time;
   Serial.begin(9600);
+
+  // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
+  for (uint8_t i = 0; i < 4; i++) {
+    digitalWrite(MOSFET_GATE_PINS[i], LOW);
+    pinMode(MOSFET_GATE_PINS[i], OUTPUT);
+  }
+
   Wire.begin();
 
   lcd.init();
@@ -210,7 +230,7 @@ void setup(){
   if (dataFile.size() == 0)               //file empty
   {
 #if ENABLE_INA219
-    dataFile.println(F("date,time,shuntmV1,busV1,currentmA1,shuntmV2,busV2,currentmA2,shuntmV3,busV3,currentmA3,shuntmV4,busV4,currentmA4,ldrRaw,ldrVolt,ldrPct"));
+    dataFile.println(F("date,time,loadShuntmV1,loadBusV1,loadCurrentmA1,iscShuntmV1,iscBusV1,iscCurrentmA1,loadShuntmV2,loadBusV2,loadCurrentmA2,iscShuntmV2,iscBusV2,iscCurrentmA2,loadShuntmV3,loadBusV3,loadCurrentmA3,iscShuntmV3,iscBusV3,iscCurrentmA3,loadShuntmV4,loadBusV4,loadCurrentmA4,iscShuntmV4,iscBusV4,iscCurrentmA4,ldrRaw,ldrVolt,ldrPct"));
 #else
     dataFile.println(F("date,time,ldrRaw,ldrVolt,ldrPct"));
 #endif
@@ -332,6 +352,18 @@ void drawChannelRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
   lcd.print(F("V"));
 }
 
+void drawIscRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
+{
+  lcd.setCursor(0, row);
+  lcd.print(F("SC"));
+  lcd.print(channelNumber);
+  lcd.print(' ');
+  printFixed4_0(iscCurrentMA[channelIndex]);
+  lcd.print(F("mA "));
+  printFixed2_1(iscBusVoltageV[channelIndex]);
+  lcd.print(F("V"));
+}
+
 void drawDisplay()
 {
   lcd.clear();
@@ -342,6 +374,12 @@ void drawDisplay()
   } else if (screen == 1) {
     drawChannelRow(0, 2, 3);
     drawChannelRow(1, 3, 4);
+  } else if (screen == 2) {
+    drawIscRow(0, 0, 1);
+    drawIscRow(1, 1, 2);
+  } else if (screen == 3) {
+    drawIscRow(0, 2, 3);
+    drawIscRow(1, 3, 4);
   } else {
     drawLdrScreen();
   }
@@ -352,7 +390,7 @@ void displayTask()
   if (millis() - lastScreenSwitch >= screenInterval) {
     lastScreenSwitch = millis();
 #if ENABLE_INA219
-    screen = (screen + 1) % 3;
+    screen = (screen + 1) % 5;
 #else
     screen = 0;
 #endif
@@ -370,7 +408,7 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
                  float &busV, float &currentMAValue)
 {
   shuntMV = sensor.getShuntVoltage_mV();
-  busV = sensor.getBusVoltage_V() * BUS_VOLTAGE_SCALE;
+  busV = sensor.getBusVoltage_V();
   currentMAValue = sensor.getCurrent_mA() * CURRENT_SCALE;
 
   Serial.print(F("shunt: "));
@@ -385,7 +423,7 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
 
 void Leitura(const tmElements_t &time)
 {
-  Serial.println(F("Iniciando leitura"));
+  Serial.println(F("Starting loaded measurement"));
 
 #if ENABLE_INA219
   Serial.print(F("INA219 CH1 (0x40): "));
@@ -414,6 +452,33 @@ void Leitura(const tmElements_t &time)
   Serial.print(ldrPct, 2);
   Serial.println(F("%"));
 
+#if ENABLE_INA219
+  // Briefly bypass each load with its parallel MOSFET, wait for the
+  // current to settle, capture Isc, and immediately remove the shorts.
+  setShortCircuit(true);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("Medindo Isc"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("curto em 250ms"));
+  delay(ISC_SETTLE_MS);
+
+  Serial.println(F("Starting short-circuit measurement"));
+
+  Serial.print(F("INA219 CH1 Isc (0x40): "));
+  INA219_read(ina219_ch1, iscShuntVoltageMV[0], iscBusVoltageV[0], iscCurrentMA[0]);
+
+  Serial.print(F("INA219 CH2 Isc (0x41): "));
+  INA219_read(ina219_ch2, iscShuntVoltageMV[1], iscBusVoltageV[1], iscCurrentMA[1]);
+
+  Serial.print(F("INA219 CH3 Isc (0x44): "));
+  INA219_read(ina219_ch3, iscShuntVoltageMV[2], iscBusVoltageV[2], iscCurrentMA[2]);
+
+  Serial.print(F("INA219 CH4 Isc (0x45): "));
+  INA219_read(ina219_ch4, iscShuntVoltageMV[3], iscBusVoltageV[3], iscCurrentMA[3]);
+
+  setShortCircuit(false);
+#endif
   displayDirty = true;
 
   // SD FILE WRITE
@@ -446,7 +511,7 @@ void Leitura(const tmElements_t &time)
   dataFile.write(',');
 
 #if ENABLE_INA219
-  // INA219 channels 1, 2, 3 and 4
+  // Loaded and short-circuit values for INA219 channels 1-4.
   for (uint8_t i = 0; i < 4; i++)
   {
     dataFile.print(shuntVoltageMV[i], 3);
@@ -454,6 +519,12 @@ void Leitura(const tmElements_t &time)
     dataFile.print(busVoltageV[i], 3);
     dataFile.write(',');
     dataFile.print(currentMA[i], 3);
+    dataFile.write(',');
+    dataFile.print(iscShuntVoltageMV[i], 3);
+    dataFile.write(',');
+    dataFile.print(iscBusVoltageV[i], 3);
+    dataFile.write(',');
+    dataFile.print(iscCurrentMA[i], 3);
     dataFile.write(',');
   }
 #endif
