@@ -1,5 +1,6 @@
 //-----libraries-------
-#define ENABLE_INA219 1  // All four INA219 channels enabled.
+#define ENABLE_INA219 1  // INA219 measurement system enabled.
+#define ENABLE_CH1 0     // Temporarily disabled due to a suspected hardware fault.
 
 #if ENABLE_INA219
 #include <Adafruit_INA219.h>
@@ -20,7 +21,9 @@ const uint8_t INA219_CH2_ADDR = 0x41;
 const uint8_t INA219_CH3_ADDR = 0x44;
 const uint8_t INA219_CH4_ADDR = 0x45;
 
+#if ENABLE_CH1
 Adafruit_INA219 ina219_ch1(INA219_CH1_ADDR);
+#endif
 Adafruit_INA219 ina219_ch2(INA219_CH2_ADDR);
 Adafruit_INA219 ina219_ch3(INA219_CH3_ADDR);
 Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
@@ -44,6 +47,7 @@ const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
 // Each IRLZ44N gate also requires a physical 10k resistor to its source.
 // Array order is CH1, CH2, CH3, CH4.
 const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
+const bool CHANNEL_ENABLED[4] = {ENABLE_CH1, true, true, true};
 const unsigned long ISC_SETTLE_MS = 250;
 
 // LDR
@@ -115,7 +119,8 @@ void setShortCircuit(bool enabled)
 {
   uint8_t gateLevel = enabled ? HIGH : LOW;
   for (uint8_t i = 0; i < 4; i++) {
-    digitalWrite(MOSFET_GATE_PINS[i], gateLevel);
+    // A disabled channel is always held LOW and can never be shorted.
+    digitalWrite(MOSFET_GATE_PINS[i], CHANNEL_ENABLED[i] ? gateLevel : LOW);
   }
 
   Serial.println(enabled ? F("Short circuit ON") : F("Short circuit OFF"));
@@ -150,6 +155,7 @@ void setup(){
 
 //-----error checks----
 #if ENABLE_INA219
+#if ENABLE_CH1
   showStartupStep(F("Testing INA219 CH1 at 0x40..."), F("Test INA CH1"));
   if (!ina219_ch1.begin())
   {
@@ -159,6 +165,9 @@ void setup(){
     lcd.print(F("Erro INA CH1"));
     while (1);
   }
+#else
+  Serial.println(F("INA219 CH1 disabled; skipping 0x40."));
+#endif
 
   showStartupStep(F("Testing INA219 CH2 at 0x41..."), F("Test INA CH2"));
   if (!ina219_ch2.begin())
@@ -344,6 +353,13 @@ void drawLdrScreen()
 void drawChannelRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
 {
   lcd.setCursor(0, row);
+  if (!CHANNEL_ENABLED[channelIndex]) {
+    lcd.print(F("C"));
+    lcd.print(channelNumber);
+    lcd.print(F(" DESATIVADO"));
+    return;
+  }
+
   lcd.print(F("C"));
   lcd.print(channelNumber);
   lcd.print(' ');
@@ -356,6 +372,13 @@ void drawChannelRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
 void drawIscRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
 {
   lcd.setCursor(0, row);
+  if (!CHANNEL_ENABLED[channelIndex]) {
+    lcd.print(F("SC"));
+    lcd.print(channelNumber);
+    lcd.print(F(" DESATIVADO"));
+    return;
+  }
+
   lcd.print(F("SC"));
   lcd.print(channelNumber);
   lcd.print(' ');
@@ -427,8 +450,10 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("Starting loaded measurement"));
 
 #if ENABLE_INA219
+#if ENABLE_CH1
   Serial.print(F("INA219 CH1 (0x40): "));
   INA219_read(ina219_ch1, shuntVoltageMV[0], busVoltageV[0], currentMA[0]);
+#endif
 
   Serial.print(F("INA219 CH2 (0x41): "));
   INA219_read(ina219_ch2, shuntVoltageMV[1], busVoltageV[1], currentMA[1]);
@@ -466,8 +491,10 @@ void Leitura(const tmElements_t &time)
 
   Serial.println(F("Starting short-circuit measurement"));
 
+#if ENABLE_CH1
   Serial.print(F("INA219 CH1 Isc (0x40): "));
   INA219_read(ina219_ch1, iscShuntVoltageMV[0], iscBusVoltageV[0], iscCurrentMA[0]);
+#endif
 
   Serial.print(F("INA219 CH2 Isc (0x41): "));
   INA219_read(ina219_ch2, iscShuntVoltageMV[1], iscBusVoltageV[1], iscCurrentMA[1]);
@@ -515,6 +542,12 @@ void Leitura(const tmElements_t &time)
   // Loaded and short-circuit values for INA219 channels 1-4.
   for (uint8_t i = 0; i < 4; i++)
   {
+    if (!CHANNEL_ENABLED[i]) {
+      // Preserve the six CH1 CSV columns as empty fields while disabled.
+      for (uint8_t field = 0; field < 6; field++) dataFile.write(',');
+      continue;
+    }
+
     dataFile.print(shuntVoltageMV[i], 3);
     dataFile.write(',');
     dataFile.print(busVoltageV[i], 3);
