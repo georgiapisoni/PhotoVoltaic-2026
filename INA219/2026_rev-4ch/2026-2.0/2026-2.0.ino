@@ -49,6 +49,8 @@ const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
 const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 const bool CHANNEL_ENABLED[4] = {ENABLE_CH1, true, true, true};
 const unsigned long ISC_SETTLE_MS = 250;
+const uint8_t ISC_SAMPLE_COUNT = 5;
+const unsigned long ISC_SAMPLE_INTERVAL_MS = 20;
 
 // LDR
 uint16_t ldrRaw = 0;
@@ -74,7 +76,8 @@ bool displayDirty = true;
 void Leitura(const tmElements_t &time);
 #if ENABLE_INA219
 void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
-                 float &busV, float &currentMAValue);
+                 float &busV, float &currentMAValue, bool printResult = true);
+void printINAValues(float shuntMV, float busV, float currentMAValue);
 #endif
 
 void showStartupStep(const __FlashStringHelper* serialMessage,
@@ -428,13 +431,8 @@ void displayTask()
 }
 
 #if ENABLE_INA219
-void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
-                 float &busV, float &currentMAValue)
+void printINAValues(float shuntMV, float busV, float currentMAValue)
 {
-  shuntMV = sensor.getShuntVoltage_mV();
-  busV = sensor.getBusVoltage_V();
-  currentMAValue = sensor.getCurrent_mA() * CURRENT_SCALE;
-
   Serial.print(F("shunt: "));
   Serial.print(shuntMV, 3);
   Serial.print(F(" mV | bus: "));
@@ -442,6 +440,16 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
   Serial.print(F(" V | current: "));
   Serial.print(currentMAValue, 3);
   Serial.println(F(" mA"));
+}
+
+void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
+                 float &busV, float &currentMAValue, bool printResult)
+{
+  shuntMV = sensor.getShuntVoltage_mV();
+  busV = sensor.getBusVoltage_V();
+  currentMAValue = sensor.getCurrent_mA() * CURRENT_SCALE;
+
+  if (printResult) printINAValues(shuntMV, busV, currentMAValue);
 }
 #endif
 
@@ -479,33 +487,72 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("%"));
 
 #if ENABLE_INA219
-  // Briefly bypass each load with its parallel MOSFET, wait for the
-  // current to settle, capture Isc, and immediately remove the shorts.
+  // Briefly bypass each load with its parallel MOSFET. After settling,
+  // average several quiet samples and remove the shorts before printing.
   setShortCircuit(true);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(F("Medindo Isc"));
   lcd.setCursor(0, 1);
-  lcd.print(F("curto em 250ms"));
+  lcd.print(F("5 amostras"));
   delay(ISC_SETTLE_MS);
 
-  Serial.println(F("Starting short-circuit measurement"));
+  for (uint8_t channel = 0; channel < 4; channel++) {
+    iscShuntVoltageMV[channel] = 0;
+    iscBusVoltageV[channel] = 0;
+    iscCurrentMA[channel] = 0;
+  }
+
+  for (uint8_t sample = 0; sample < ISC_SAMPLE_COUNT; sample++) {
+    float sampleShuntMV;
+    float sampleBusV;
+    float sampleCurrentMA;
 
 #if ENABLE_CH1
-  Serial.print(F("INA219 CH1 Isc (0x40): "));
-  INA219_read(ina219_ch1, iscShuntVoltageMV[0], iscBusVoltageV[0], iscCurrentMA[0]);
+    INA219_read(ina219_ch1, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    iscShuntVoltageMV[0] += sampleShuntMV;
+    iscBusVoltageV[0] += sampleBusV;
+    iscCurrentMA[0] += sampleCurrentMA;
 #endif
 
-  Serial.print(F("INA219 CH2 Isc (0x41): "));
-  INA219_read(ina219_ch2, iscShuntVoltageMV[1], iscBusVoltageV[1], iscCurrentMA[1]);
+    INA219_read(ina219_ch2, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    iscShuntVoltageMV[1] += sampleShuntMV;
+    iscBusVoltageV[1] += sampleBusV;
+    iscCurrentMA[1] += sampleCurrentMA;
 
-  Serial.print(F("INA219 CH3 Isc (0x44): "));
-  INA219_read(ina219_ch3, iscShuntVoltageMV[2], iscBusVoltageV[2], iscCurrentMA[2]);
+    INA219_read(ina219_ch3, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    iscShuntVoltageMV[2] += sampleShuntMV;
+    iscBusVoltageV[2] += sampleBusV;
+    iscCurrentMA[2] += sampleCurrentMA;
 
-  Serial.print(F("INA219 CH4 Isc (0x45): "));
-  INA219_read(ina219_ch4, iscShuntVoltageMV[3], iscBusVoltageV[3], iscCurrentMA[3]);
+    INA219_read(ina219_ch4, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    iscShuntVoltageMV[3] += sampleShuntMV;
+    iscBusVoltageV[3] += sampleBusV;
+    iscCurrentMA[3] += sampleCurrentMA;
+
+    if (sample + 1 < ISC_SAMPLE_COUNT) delay(ISC_SAMPLE_INTERVAL_MS);
+  }
+
+  for (uint8_t channel = 0; channel < 4; channel++) {
+    if (!CHANNEL_ENABLED[channel]) continue;
+    iscShuntVoltageMV[channel] /= ISC_SAMPLE_COUNT;
+    iscBusVoltageV[channel] /= ISC_SAMPLE_COUNT;
+    iscCurrentMA[channel] /= ISC_SAMPLE_COUNT;
+  }
 
   setShortCircuit(false);
+
+  Serial.println(F("Averaged short-circuit measurement (5 samples)"));
+#if ENABLE_CH1
+  Serial.print(F("INA219 CH1 Isc (0x40): "));
+  printINAValues(iscShuntVoltageMV[0], iscBusVoltageV[0], iscCurrentMA[0]);
+#endif
+  Serial.print(F("INA219 CH2 Isc (0x41): "));
+  printINAValues(iscShuntVoltageMV[1], iscBusVoltageV[1], iscCurrentMA[1]);
+  Serial.print(F("INA219 CH3 Isc (0x44): "));
+  printINAValues(iscShuntVoltageMV[2], iscBusVoltageV[2], iscCurrentMA[2]);
+  Serial.print(F("INA219 CH4 Isc (0x45): "));
+  printINAValues(iscShuntVoltageMV[3], iscBusVoltageV[3], iscCurrentMA[3]);
 #endif
   displayDirty = true;
 
