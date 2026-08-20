@@ -31,6 +31,9 @@ Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
 float shuntVoltageMV[4] = {0, 0, 0, 0};
 float busVoltageV[4] = {0, 0, 0, 0};
 float currentMA[4] = {0, 0, 0, 0};
+float ocShuntVoltageMV[4] = {0, 0, 0, 0};
+float ocBusVoltageV[4] = {0, 0, 0, 0};
+float ocCurrentMA[4] = {0, 0, 0, 0};
 float iscShuntVoltageMV[4] = {0, 0, 0, 0};
 float iscBusVoltageV[4] = {0, 0, 0, 0};
 float iscCurrentMA[4] = {0, 0, 0, 0};
@@ -47,10 +50,13 @@ const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
 // Each IRLZ44N gate also requires a physical 10k resistor to its source.
 // Array order is CH1, CH2, CH3, CH4.
 const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
+// Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
+const uint8_t LOAD_GATE_PINS[4] = {9, 8, 7, 6};
 const bool CHANNEL_ENABLED[4] = {ENABLE_CH1, true, true, true};
+const unsigned long OC_SETTLE_MS = 250;
 const unsigned long ISC_SETTLE_MS = 250;
-const uint8_t ISC_SAMPLE_COUNT = 5;
-const unsigned long ISC_SAMPLE_INTERVAL_MS = 20;
+const uint8_t MEASUREMENT_SAMPLE_COUNT = 5;
+const unsigned long SAMPLE_INTERVAL_MS = 20;
 
 // LDR
 uint16_t ldrRaw = 0;
@@ -59,7 +65,7 @@ float ldrPct = 0.0;                     //percentage
 
 int8_t   lastMin = -1;
 #if ENABLE_INA219
-const char* DATA_FILE = "pv_isc.csv";
+const char* DATA_FILE = "pv_iv.csv";
 #else
 const char* DATA_FILE = "test.csv";
 #endif
@@ -78,6 +84,7 @@ void Leitura(const tmElements_t &time);
 void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
                  float &busV, float &currentMAValue, bool printResult = true);
 void printINAValues(float shuntMV, float busV, float currentMAValue);
+void averageINA219Readings(float shuntMV[4], float busV[4], float currentValueMA[4]);
 #endif
 
 void showStartupStep(const __FlashStringHelper* serialMessage,
@@ -130,6 +137,18 @@ void setShortCircuit(bool enabled)
   Serial.flush();
 }
 
+void setLoadsConnected(bool connected)
+{
+  for (uint8_t i = 0; i < 4; i++) {
+    // Never disturb the load on a disabled measurement channel.
+    bool channelConnected = CHANNEL_ENABLED[i] ? connected : true;
+    digitalWrite(LOAD_GATE_PINS[i], channelConnected ? HIGH : LOW);
+  }
+
+  Serial.println(connected ? F("Loads connected") : F("Loads disconnected (open circuit)"));
+  Serial.flush();
+}
+
 void setup(){
   tmElements_t time;
   Serial.begin(9600);
@@ -138,6 +157,10 @@ void setup(){
   for (uint8_t i = 0; i < 4; i++) {
     digitalWrite(MOSFET_GATE_PINS[i], LOW);
     pinMode(MOSFET_GATE_PINS[i], OUTPUT);
+
+    // HIGH is the normal state for the series load switches.
+    digitalWrite(LOAD_GATE_PINS[i], HIGH);
+    pinMode(LOAD_GATE_PINS[i], OUTPUT);
   }
 
   Wire.begin();
@@ -243,7 +266,7 @@ void setup(){
   if (dataFile.size() == 0)               //file empty
   {
 #if ENABLE_INA219
-    dataFile.println(F("date,time,loadShuntmV1,loadBusV1,loadCurrentmA1,iscShuntmV1,iscBusV1,iscCurrentmA1,loadShuntmV2,loadBusV2,loadCurrentmA2,iscShuntmV2,iscBusV2,iscCurrentmA2,loadShuntmV3,loadBusV3,loadCurrentmA3,iscShuntmV3,iscBusV3,iscCurrentmA3,loadShuntmV4,loadBusV4,loadCurrentmA4,iscShuntmV4,iscBusV4,iscCurrentmA4,ldrRaw,ldrVolt,ldrPct"));
+    dataFile.println(F("date,time,loadShuntmV1,loadBusV1,loadCurrentmA1,ocShuntmV1,ocBusV1,ocCurrentmA1,iscShuntmV1,iscBusV1,iscCurrentmA1,loadShuntmV2,loadBusV2,loadCurrentmA2,ocShuntmV2,ocBusV2,ocCurrentmA2,iscShuntmV2,iscBusV2,iscCurrentmA2,loadShuntmV3,loadBusV3,loadCurrentmA3,ocShuntmV3,ocBusV3,ocCurrentmA3,iscShuntmV3,iscBusV3,iscCurrentmA3,loadShuntmV4,loadBusV4,loadCurrentmA4,ocShuntmV4,ocBusV4,ocCurrentmA4,iscShuntmV4,iscBusV4,iscCurrentmA4,ldrRaw,ldrVolt,ldrPct"));
 #else
     dataFile.println(F("date,time,ldrRaw,ldrVolt,ldrPct"));
 #endif
@@ -391,6 +414,25 @@ void drawIscRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
   lcd.print(F("V"));
 }
 
+void drawOcRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber)
+{
+  lcd.setCursor(0, row);
+  if (!CHANNEL_ENABLED[channelIndex]) {
+    lcd.print(F("OC"));
+    lcd.print(channelNumber);
+    lcd.print(F(" DESATIVADO"));
+    return;
+  }
+
+  lcd.print(F("OC"));
+  lcd.print(channelNumber);
+  lcd.print(' ');
+  printFixed4_0(ocCurrentMA[channelIndex]);
+  lcd.print(F("mA "));
+  printFixed2_1(ocBusVoltageV[channelIndex]);
+  lcd.print(F("V"));
+}
+
 void drawDisplay()
 {
   lcd.clear();
@@ -402,9 +444,15 @@ void drawDisplay()
     drawChannelRow(0, 2, 3);
     drawChannelRow(1, 3, 4);
   } else if (screen == 2) {
+    drawOcRow(0, 0, 1);
+    drawOcRow(1, 1, 2);
+  } else if (screen == 3) {
+    drawOcRow(0, 2, 3);
+    drawOcRow(1, 3, 4);
+  } else if (screen == 4) {
     drawIscRow(0, 0, 1);
     drawIscRow(1, 1, 2);
-  } else if (screen == 3) {
+  } else if (screen == 5) {
     drawIscRow(0, 2, 3);
     drawIscRow(1, 3, 4);
   } else {
@@ -417,7 +465,7 @@ void displayTask()
   if (millis() - lastScreenSwitch >= screenInterval) {
     lastScreenSwitch = millis();
 #if ENABLE_INA219
-    screen = (screen + 1) % 5;
+    screen = (screen + 1) % 7;
 #else
     screen = 0;
 #endif
@@ -450,6 +498,52 @@ void INA219_read(Adafruit_INA219 &sensor, float &shuntMV,
   currentMAValue = sensor.getCurrent_mA() * CURRENT_SCALE;
 
   if (printResult) printINAValues(shuntMV, busV, currentMAValue);
+}
+
+void averageINA219Readings(float shuntMV[4], float busV[4], float currentValueMA[4])
+{
+  for (uint8_t channel = 0; channel < 4; channel++) {
+    shuntMV[channel] = 0;
+    busV[channel] = 0;
+    currentValueMA[channel] = 0;
+  }
+
+  for (uint8_t sample = 0; sample < MEASUREMENT_SAMPLE_COUNT; sample++) {
+    float sampleShuntMV;
+    float sampleBusV;
+    float sampleCurrentMA;
+
+#if ENABLE_CH1
+    INA219_read(ina219_ch1, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    shuntMV[0] += sampleShuntMV;
+    busV[0] += sampleBusV;
+    currentValueMA[0] += sampleCurrentMA;
+#endif
+
+    INA219_read(ina219_ch2, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    shuntMV[1] += sampleShuntMV;
+    busV[1] += sampleBusV;
+    currentValueMA[1] += sampleCurrentMA;
+
+    INA219_read(ina219_ch3, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    shuntMV[2] += sampleShuntMV;
+    busV[2] += sampleBusV;
+    currentValueMA[2] += sampleCurrentMA;
+
+    INA219_read(ina219_ch4, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
+    shuntMV[3] += sampleShuntMV;
+    busV[3] += sampleBusV;
+    currentValueMA[3] += sampleCurrentMA;
+
+    if (sample + 1 < MEASUREMENT_SAMPLE_COUNT) delay(SAMPLE_INTERVAL_MS);
+  }
+
+  for (uint8_t channel = 0; channel < 4; channel++) {
+    if (!CHANNEL_ENABLED[channel]) continue;
+    shuntMV[channel] /= MEASUREMENT_SAMPLE_COUNT;
+    busV[channel] /= MEASUREMENT_SAMPLE_COUNT;
+    currentValueMA[channel] /= MEASUREMENT_SAMPLE_COUNT;
+  }
 }
 #endif
 
@@ -487,6 +581,31 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("%"));
 
 #if ENABLE_INA219
+  // Disconnect each enabled load, allow Voc to settle, average five
+  // readings, and reconnect the loads before any Serial output.
+  setLoadsConnected(false);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("Medindo Voc"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("5 amostras"));
+  delay(OC_SETTLE_MS);
+
+  averageINA219Readings(ocShuntVoltageMV, ocBusVoltageV, ocCurrentMA);
+  setLoadsConnected(true);
+
+  Serial.println(F("Averaged open-circuit measurement (5 samples)"));
+#if ENABLE_CH1
+  Serial.print(F("INA219 CH1 Voc (0x40): "));
+  printINAValues(ocShuntVoltageMV[0], ocBusVoltageV[0], ocCurrentMA[0]);
+#endif
+  Serial.print(F("INA219 CH2 Voc (0x41): "));
+  printINAValues(ocShuntVoltageMV[1], ocBusVoltageV[1], ocCurrentMA[1]);
+  Serial.print(F("INA219 CH3 Voc (0x44): "));
+  printINAValues(ocShuntVoltageMV[2], ocBusVoltageV[2], ocCurrentMA[2]);
+  Serial.print(F("INA219 CH4 Voc (0x45): "));
+  printINAValues(ocShuntVoltageMV[3], ocBusVoltageV[3], ocCurrentMA[3]);
+
   // Briefly bypass each load with its parallel MOSFET. After settling,
   // average several quiet samples and remove the shorts before printing.
   setShortCircuit(true);
@@ -497,49 +616,7 @@ void Leitura(const tmElements_t &time)
   lcd.print(F("5 amostras"));
   delay(ISC_SETTLE_MS);
 
-  for (uint8_t channel = 0; channel < 4; channel++) {
-    iscShuntVoltageMV[channel] = 0;
-    iscBusVoltageV[channel] = 0;
-    iscCurrentMA[channel] = 0;
-  }
-
-  for (uint8_t sample = 0; sample < ISC_SAMPLE_COUNT; sample++) {
-    float sampleShuntMV;
-    float sampleBusV;
-    float sampleCurrentMA;
-
-#if ENABLE_CH1
-    INA219_read(ina219_ch1, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
-    iscShuntVoltageMV[0] += sampleShuntMV;
-    iscBusVoltageV[0] += sampleBusV;
-    iscCurrentMA[0] += sampleCurrentMA;
-#endif
-
-    INA219_read(ina219_ch2, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
-    iscShuntVoltageMV[1] += sampleShuntMV;
-    iscBusVoltageV[1] += sampleBusV;
-    iscCurrentMA[1] += sampleCurrentMA;
-
-    INA219_read(ina219_ch3, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
-    iscShuntVoltageMV[2] += sampleShuntMV;
-    iscBusVoltageV[2] += sampleBusV;
-    iscCurrentMA[2] += sampleCurrentMA;
-
-    INA219_read(ina219_ch4, sampleShuntMV, sampleBusV, sampleCurrentMA, false);
-    iscShuntVoltageMV[3] += sampleShuntMV;
-    iscBusVoltageV[3] += sampleBusV;
-    iscCurrentMA[3] += sampleCurrentMA;
-
-    if (sample + 1 < ISC_SAMPLE_COUNT) delay(ISC_SAMPLE_INTERVAL_MS);
-  }
-
-  for (uint8_t channel = 0; channel < 4; channel++) {
-    if (!CHANNEL_ENABLED[channel]) continue;
-    iscShuntVoltageMV[channel] /= ISC_SAMPLE_COUNT;
-    iscBusVoltageV[channel] /= ISC_SAMPLE_COUNT;
-    iscCurrentMA[channel] /= ISC_SAMPLE_COUNT;
-  }
-
+  averageINA219Readings(iscShuntVoltageMV, iscBusVoltageV, iscCurrentMA);
   setShortCircuit(false);
 
   Serial.println(F("Averaged short-circuit measurement (5 samples)"));
@@ -586,12 +663,12 @@ void Leitura(const tmElements_t &time)
   dataFile.write(',');
 
 #if ENABLE_INA219
-  // Loaded and short-circuit values for INA219 channels 1-4.
+  // Loaded, open-circuit, and short-circuit values for channels 1-4.
   for (uint8_t i = 0; i < 4; i++)
   {
     if (!CHANNEL_ENABLED[i]) {
-      // Preserve the six CH1 CSV columns as empty fields while disabled.
-      for (uint8_t field = 0; field < 6; field++) dataFile.write(',');
+      // Preserve the nine channel CSV columns as empty fields while disabled.
+      for (uint8_t field = 0; field < 9; field++) dataFile.write(',');
       continue;
     }
 
@@ -600,6 +677,12 @@ void Leitura(const tmElements_t &time)
     dataFile.print(busVoltageV[i], 3);
     dataFile.write(',');
     dataFile.print(currentMA[i], 3);
+    dataFile.write(',');
+    dataFile.print(ocShuntVoltageMV[i], 3);
+    dataFile.write(',');
+    dataFile.print(ocBusVoltageV[i], 3);
+    dataFile.write(',');
+    dataFile.print(ocCurrentMA[i], 3);
     dataFile.write(',');
     dataFile.print(iscShuntVoltageMV[i], 3);
     dataFile.write(',');
