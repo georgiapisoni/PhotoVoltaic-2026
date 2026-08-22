@@ -1,0 +1,8 @@
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# MicroPython build and local configuration files
+*.mpy
+ESP32/mqtt_gateway/config.py
+
