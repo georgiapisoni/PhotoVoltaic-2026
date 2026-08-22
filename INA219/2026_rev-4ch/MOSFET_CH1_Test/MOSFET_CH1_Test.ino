@@ -6,6 +6,7 @@ const uint8_t LOAD_GATE_PIN  = 9; // CH1 series load MOSFET
 
 const unsigned long OPEN_CIRCUIT_TEST_MS  = 15000; // 15 seconds
 const unsigned long SHORT_CIRCUIT_TEST_MS = 5000;  // 5 seconds maximum
+const unsigned long MOSFET_DEAD_TIME_MS    = 10;    // break-before-make delay
 
 enum TestState : uint8_t {
   LOADED,
@@ -28,8 +29,9 @@ void printMenu()
 
 void enterLoadedState()
 {
-  // Always remove the short before connecting the load.
+  // Always remove the short before reconnecting the load.
   digitalWrite(SHORT_GATE_PIN, LOW);
+  delay(MOSFET_DEAD_TIME_MS);
   digitalWrite(LOAD_GATE_PIN, HIGH);
   state = LOADED;
   Serial.println(F("STATE: LOADED (load ON, short OFF)"));
@@ -48,14 +50,16 @@ void enterOpenCircuitState()
 
 void enterShortCircuitState()
 {
-  // Reconnect the load before enabling its parallel shorting MOSFET.
-  digitalWrite(LOAD_GATE_PIN, HIGH);
-  delay(10);
+  // Disconnect the load first so panel current can flow only through
+  // the parallel short-circuit MOSFET during this test.
+  digitalWrite(SHORT_GATE_PIN, LOW);
+  digitalWrite(LOAD_GATE_PIN, LOW);
+  delay(MOSFET_DEAD_TIME_MS);
   digitalWrite(SHORT_GATE_PIN, HIGH);
   state = SHORT_CIRCUIT;
   stateStartedAt = millis();
   lastCountdownAt = stateStartedAt;
-  Serial.println(F("STATE: SHORT CIRCUIT for 5 seconds"));
+  Serial.println(F("STATE: SHORT CIRCUIT (load OFF) for 5 seconds"));
 }
 
 void setup()
