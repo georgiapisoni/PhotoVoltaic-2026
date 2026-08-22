@@ -5,7 +5,7 @@ const uint8_t SHORT_GATE_PIN = 5; // CH1 parallel short-circuit MOSFET
 const uint8_t LOAD_GATE_PIN  = 9; // CH1 series load MOSFET
 
 const unsigned long OPEN_CIRCUIT_TEST_MS  = 15000; // 15 seconds
-const unsigned long SHORT_CIRCUIT_TEST_MS = 10000; // 10 seconds maximum
+const unsigned long SHORT_CIRCUIT_TEST_MS = 5000;  // 5 seconds maximum
 
 enum TestState : uint8_t {
   LOADED,
@@ -21,7 +21,7 @@ void printMenu()
 {
   Serial.println(F("Commands:"));
   Serial.println(F("  o = CH1 open circuit for 15 seconds"));
-  Serial.println(F("  s = CH1 short circuit for 10 seconds"));
+  Serial.println(F("  s = CH1 short circuit for 5 seconds"));
   Serial.println(F("  l = return immediately to loaded state"));
   Serial.println(F("  ? = show this menu"));
 }
@@ -55,7 +55,7 @@ void enterShortCircuitState()
   state = SHORT_CIRCUIT;
   stateStartedAt = millis();
   lastCountdownAt = stateStartedAt;
-  Serial.println(F("STATE: SHORT CIRCUIT for 10 seconds"));
+  Serial.println(F("STATE: SHORT CIRCUIT for 5 seconds"));
 }
 
 void setup()
