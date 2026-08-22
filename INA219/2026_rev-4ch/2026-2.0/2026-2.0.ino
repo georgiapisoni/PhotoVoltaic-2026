@@ -1,11 +1,8 @@
 //-----libraries-------
-#define ENABLE_INA219 1  // INA219 measurement system enabled.
-#define ENABLE_CH1 0     // Temporarily disabled due to a suspected hardware fault.
+#define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
 
-#if ENABLE_INA219
 #include <Adafruit_INA219.h>
-#endif
 #include <DS1307RTC.h>
 #include <LiquidCrystal_I2C.h>
 #include <SPI.h>
@@ -16,53 +13,49 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // I2C addresses: LCD 0x27, RTC 0x68, and INA219 channels 1-4.
-#if ENABLE_INA219
 const uint8_t INA219_CH1_ADDR = 0x40;
 const uint8_t INA219_CH2_ADDR = 0x41;
 const uint8_t INA219_CH3_ADDR = 0x44;
 const uint8_t INA219_CH4_ADDR = 0x45;
 
-#if ENABLE_CH1
 Adafruit_INA219 ina219_ch1(INA219_CH1_ADDR);
-#endif
 Adafruit_INA219 ina219_ch2(INA219_CH2_ADDR);
 Adafruit_INA219 ina219_ch3(INA219_CH3_ADDR);
 Adafruit_INA219 ina219_ch4(INA219_CH4_ADDR);
 
-float shuntVoltageMV[4] = {0, 0, 0, 0};
-float busVoltageV[4] = {0, 0, 0, 0};
-float currentMA[4] = {0, 0, 0, 0};
-float ocShuntVoltageMV[4] = {0, 0, 0, 0};
-float ocBusVoltageV[4] = {0, 0, 0, 0};
-float ocCurrentMA[4] = {0, 0, 0, 0};
+float shuntVoltageMV[4]    = {0, 0, 0, 0};
+float busVoltageV[4]       = {0, 0, 0, 0};
+float currentMA[4]         = {0, 0, 0, 0};
+float ocShuntVoltageMV[4]  = {0, 0, 0, 0};
+float ocBusVoltageV[4]     = {0, 0, 0, 0};
+float ocCurrentMA[4]       = {0, 0, 0, 0};
 float iscShuntVoltageMV[4] = {0, 0, 0, 0};
-float iscBusVoltageV[4] = {0, 0, 0, 0};
-float iscCurrentMA[4] = {0, 0, 0, 0};
+float iscBusVoltageV[4]    = {0, 0, 0, 0};
+float iscCurrentMA[4]      = {0, 0, 0, 0};
 
-// The built-in 0.1 ohm shunt is paralleled with another 0.1 ohm shunt.
-// Equivalent resistance is 0.05 ohm, so the library's default 0.1 ohm
+// built-in 0.1Ω shunt is in parallel with external 0.1Ω shunt.
+// Equivalent resistance is 0.05Ω
 // current result must be multiplied by 0.1 / 0.05 = 2.
 const float CURRENT_SCALE = 2.0;
-#endif
 
 // setting pins
-const uint8_t chipSelect = 10;        //sd card reader -> CS[D10]
-const uint8_t LDR_PIN = A0;           //light sensor -> A0=D14
-// Each IRLZ44N gate also requires a physical 10k resistor to its source.
+const uint8_t chipSelect = 10; //sd card reader -> CS[D10]
+const uint8_t LDR_PIN    = A0; //light sensor -> A0=D14
+
 // Array order is CH1, CH2, CH3, CH4.
 const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
+
 // Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
-const uint8_t LOAD_GATE_PINS[4] = {9, 8, 7, 6};
-const bool CHANNEL_ENABLED[4] = {ENABLE_CH1, true, true, true};
-const unsigned long OC_SETTLE_MS = 250;
-const unsigned long ISC_SETTLE_MS = 250;
+const uint8_t LOAD_GATE_PINS[4]        = {9, 8, 7, 6};
+const unsigned long OC_SETTLE_MS       = 250;
+const unsigned long ISC_SETTLE_MS      = 250;
 const uint8_t MEASUREMENT_SAMPLE_COUNT = 5;
 const unsigned long SAMPLE_INTERVAL_MS = 20;
 
 // LDR
 uint16_t ldrRaw = 0;
-float ldrVolt = 0.0;
-float ldrPct = 0.0;                     //percentage
+float ldrVolt   = 0.0;
+float ldrPct    = 0.0; //percentage
 
 int8_t   lastMin = -1;
 #if ENABLE_INA219
@@ -74,8 +67,8 @@ tmElements_t displayTime;
 bool displayTimeValid = false;
 
 // display
-uint8_t screen = 0;
-unsigned long lastScreenSwitch = 0;
+uint8_t screen                     = 0;
+unsigned long lastScreenSwitch     = 0;
 const unsigned long screenInterval = 4000; // 4 seconds
 
 bool displayDirty = true;
@@ -136,8 +129,7 @@ void setShortCircuit(bool enabled)
 {
   uint8_t gateLevel = enabled ? HIGH : LOW;
   for (uint8_t i = 0; i < 4; i++) {
-    // A disabled channel is always held LOW and can never be shorted.
-    digitalWrite(MOSFET_GATE_PINS[i], CHANNEL_ENABLED[i] ? gateLevel : LOW);
+    digitalWrite(MOSFET_GATE_PINS[i], gateLevel);
   }
 
   Serial.println(enabled ? F("Short circuit ON") : F("Short circuit OFF"));
@@ -147,9 +139,7 @@ void setShortCircuit(bool enabled)
 void setLoadsConnected(bool connected)
 {
   for (uint8_t i = 0; i < 4; i++) {
-    // Never disturb the load on a disabled measurement channel.
-    bool channelConnected = CHANNEL_ENABLED[i] ? connected : true;
-    digitalWrite(LOAD_GATE_PINS[i], channelConnected ? HIGH : LOW);
+    digitalWrite(LOAD_GATE_PINS[i], connected ? HIGH : LOW);
   }
 
   Serial.println(connected ? F("Loads connected") : F("Loads disconnected (open circuit)"));
@@ -190,7 +180,6 @@ void setup(){
 
 //-----error checks----
 #if ENABLE_INA219
-#if ENABLE_CH1
   showStartupStep(F("INA CH1 test"), F("Test INA CH1"));
   if (!ina219_ch1.begin())
   {
@@ -200,9 +189,6 @@ void setup(){
     lcd.print(F("Erro INA CH1"));
     while (1);
   }
-#else
-  Serial.println(F("INA CH1 disabled"));
-#endif
 
   showStartupStep(F("INA CH2 test"), F("Test INA CH2"));
   if (!ina219_ch2.begin())
@@ -392,12 +378,6 @@ void drawMeasurementRow(uint8_t row, uint8_t channelIndex, uint8_t channelNumber
   lcd.setCursor(0, row);
   lcd.print(label);
   lcd.print(channelNumber);
-
-  if (!CHANNEL_ENABLED[channelIndex]) {
-    lcd.print(F(" DESATIVADO"));
-    return;
-  }
-
   lcd.print(' ');
   printFixed4_0(currentValues[channelIndex]);
   lcd.print(F("mA "));
@@ -475,7 +455,6 @@ void printMeasurements(const __FlashStringHelper *label,
                        const float currentValueMA[4])
 {
   for (uint8_t channel = 0; channel < 4; channel++) {
-    if (!CHANNEL_ENABLED[channel]) continue;
     Serial.print(label);
     Serial.print(F(" CH"));
     Serial.print(channel + 1);
@@ -497,12 +476,10 @@ void averageINA219Readings(float shuntMV[4], float busV[4], float currentValueMA
     float sampleBusV;
     float sampleCurrentMA;
 
-#if ENABLE_CH1
     INA219_read(ina219_ch1, sampleShuntMV, sampleBusV, sampleCurrentMA);
     shuntMV[0] += sampleShuntMV;
     busV[0] += sampleBusV;
     currentValueMA[0] += sampleCurrentMA;
-#endif
 
     INA219_read(ina219_ch2, sampleShuntMV, sampleBusV, sampleCurrentMA);
     shuntMV[1] += sampleShuntMV;
@@ -523,7 +500,6 @@ void averageINA219Readings(float shuntMV[4], float busV[4], float currentValueMA
   }
 
   for (uint8_t channel = 0; channel < 4; channel++) {
-    if (!CHANNEL_ENABLED[channel]) continue;
     shuntMV[channel] /= MEASUREMENT_SAMPLE_COUNT;
     busV[channel] /= MEASUREMENT_SAMPLE_COUNT;
     currentValueMA[channel] /= MEASUREMENT_SAMPLE_COUNT;
@@ -563,10 +539,7 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("Starting loaded measurement"));
 
 #if ENABLE_INA219
-#if ENABLE_CH1
   INA219_read(ina219_ch1, shuntVoltageMV[0], busVoltageV[0], currentMA[0]);
-#endif
-
   INA219_read(ina219_ch2, shuntVoltageMV[1], busVoltageV[1], currentMA[1]);
   INA219_read(ina219_ch3, shuntVoltageMV[2], busVoltageV[2], currentMA[2]);
   INA219_read(ina219_ch4, shuntVoltageMV[3], busVoltageV[3], currentMA[3]);
@@ -650,16 +623,9 @@ void Leitura(const tmElements_t &time)
   dataFile.print(time.Second);
   dataFile.write(',');
 
-#if ENABLE_INA219
   // Loaded, open-circuit, and short-circuit values for channels 1-4.
   for (uint8_t i = 0; i < 4; i++)
   {
-    if (!CHANNEL_ENABLED[i]) {
-      // Preserve the nine channel CSV columns as empty fields while disabled.
-      for (uint8_t field = 0; field < 9; field++) dataFile.write(',');
-      continue;
-    }
-
     dataFile.print(shuntVoltageMV[i], 3);
     dataFile.write(',');
     dataFile.print(busVoltageV[i], 3);
@@ -679,7 +645,7 @@ void Leitura(const tmElements_t &time)
     dataFile.print(iscCurrentMA[i], 3);
     dataFile.write(',');
   }
-#endif
+
   //LDR
   dataFile.print(ldrRaw);
   dataFile.write(',');
