@@ -1,6 +1,6 @@
 //-----libraries-------
 #define ENABLE_INA219 1  // INA219 measurement system enabled.
-#define ENABLE_CH1 0     // Temporarily disabled due to a suspected hardware fault.
+#define ENABLE_CH1 1     // INA219 CH1 enabled at I2C address 0x40.
 
 #if ENABLE_INA219
 #include <Adafruit_INA219.h>
