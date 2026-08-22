@@ -46,13 +46,14 @@ const uint8_t LDR_PIN    = A0; //light sensor -> A0=D14
 const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 
 // Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
-const uint8_t LOAD_GATE_PINS[4]        = {9, 8, 7, 6};
-const bool ALL_CHANNELS[4]             = {true, true, true, true};
-const bool OC_CHANNEL_ENABLED[4]       = {true, false, false, false};
-const unsigned long OC_SETTLE_MS       = 250;
-const unsigned long ISC_SETTLE_MS      = 250;
-const uint8_t MEASUREMENT_SAMPLE_COUNT = 5;
-const unsigned long SAMPLE_INTERVAL_MS = 20;
+const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
+const bool ALL_CHANNELS[4]              = {true, true, true, true};
+const bool OC_CHANNEL_ENABLED[4]        = {true, false, false, false};
+const unsigned long OC_SETTLE_MS        = 250;
+const unsigned long ISC_SETTLE_MS       = 250;
+const uint8_t MEASUREMENT_SAMPLE_COUNT  = 5;
+const unsigned long SAMPLE_INTERVAL_MS  = 20;
+const unsigned long MOSFET_DEAD_TIME_MS = 10;
 
 // LDR
 uint16_t ldrRaw = 0;
@@ -132,12 +133,29 @@ void scanI2CBus()
 
 void setShortCircuit(bool enabled)
 {
-  uint8_t gateLevel = enabled ? HIGH : LOW;
-  for (uint8_t i = 0; i < 4; i++) {
-    digitalWrite(MOSFET_GATE_PINS[i], gateLevel);
+  if (enabled) {
+    // Disconnect every load before enabling its parallel shorting MOSFET.
+    for (uint8_t i = 0; i < 4; i++) {
+      digitalWrite(MOSFET_GATE_PINS[i], LOW);
+      digitalWrite(LOAD_GATE_PINS[i], LOW);
+    }
+    delay(MOSFET_DEAD_TIME_MS);
+    for (uint8_t i = 0; i < 4; i++) {
+      digitalWrite(MOSFET_GATE_PINS[i], HIGH);
+    }
+  } else {
+    // Remove every short before reconnecting the corresponding load.
+    for (uint8_t i = 0; i < 4; i++) {
+      digitalWrite(MOSFET_GATE_PINS[i], LOW);
+    }
+    delay(MOSFET_DEAD_TIME_MS);
+    for (uint8_t i = 0; i < 4; i++) {
+      digitalWrite(LOAD_GATE_PINS[i], HIGH);
+    }
   }
 
-  Serial.println(enabled ? F("Short circuit ON") : F("Short circuit OFF"));
+  Serial.println(enabled ? F("Short circuit ON; loads OFF")
+                         : F("Short circuit OFF; loads ON"));
   Serial.flush();
 }
 
@@ -608,8 +626,9 @@ void Leitura(const tmElements_t &time)
   printMeasurements(F("VOC"), ocShuntVoltageMV, ocBusVoltageV, ocCurrentMA,
                     OC_CHANNEL_ENABLED);
 
-  // Briefly bypass each load with its parallel MOSFET. After settling,
-  // average several quiet samples and remove the shorts before printing.
+  // Disconnect all loads, then enable their parallel shorting MOSFETs.
+  // After settling, average several quiet samples, remove every short,
+  // and reconnect all loads before printing.
   setShortCircuit(true);
   lcd.clear();
   lcd.setCursor(0, 0);
