@@ -62,7 +62,8 @@ uint16_t ldrRaw = 0;
 float ldrVolt   = 0.0;
 float ldrPct    = 0.0; //percentage
 
-int8_t   lastMin = -1;
+const unsigned long MEASUREMENT_INTERVAL_MS = 15000; // temporary 15-second test interval
+unsigned long lastMeasurementMillis = 0;
 #if ENABLE_INA219
 const char* DATA_FILE = "pv_iv.csv";
 #else
@@ -301,6 +302,7 @@ void setup(){
 
   // Take one immediate reading so the test screen is not left at zero.
   Leitura(time);
+  lastMeasurementMillis = millis();
 }
 
 void loop()
@@ -313,9 +315,9 @@ void loop()
     displayTime = time;
     displayTimeValid = true;
 
-    if(time.Minute != lastMin)
+    if (millis() - lastMeasurementMillis >= MEASUREMENT_INTERVAL_MS)
     {
-      lastMin = time.Minute;
+      lastMeasurementMillis = millis();
       Leitura(time);
     }
   }
