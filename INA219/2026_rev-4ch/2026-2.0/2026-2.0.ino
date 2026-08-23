@@ -264,7 +264,6 @@ void setup(){
   showStartupStep(F("RTC test"), F("Testando RTC"));
   if (RTC.read(time))
   {
-    lastMin = time.Minute;
     displayTime = time;
     displayTimeValid = true;
   }
