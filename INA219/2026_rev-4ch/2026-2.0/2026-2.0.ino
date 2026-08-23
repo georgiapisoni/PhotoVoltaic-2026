@@ -47,6 +47,8 @@ const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 
 // Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
 const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
+// Load-only test: leave MOSFET pins untouched and keep the external load connected.
+const bool MOSFET_CONTROL_ENABLED      = false;
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, false, false, false};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -175,14 +177,16 @@ void setup(){
   tmElements_t time;
   Serial.begin(9600);
 
-  // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
-  for (uint8_t i = 0; i < 4; i++) {
-    digitalWrite(MOSFET_GATE_PINS[i], LOW);
-    pinMode(MOSFET_GATE_PINS[i], OUTPUT);
+  if (MOSFET_CONTROL_ENABLED) {
+    // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
+    for (uint8_t i = 0; i < 4; i++) {
+      digitalWrite(MOSFET_GATE_PINS[i], LOW);
+      pinMode(MOSFET_GATE_PINS[i], OUTPUT);
 
-    // HIGH is the normal state for the series load switches.
-    digitalWrite(LOAD_GATE_PINS[i], HIGH);
-    pinMode(LOAD_GATE_PINS[i], OUTPUT);
+      // HIGH is the normal state for the series load switches.
+      digitalWrite(LOAD_GATE_PINS[i], HIGH);
+      pinMode(LOAD_GATE_PINS[i], OUTPUT);
+    }
   }
 
   Wire.begin();
@@ -608,6 +612,7 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("%"));
 
 #if ENABLE_INA219
+ #if MOSFET_CONTROL_ENABLED
   // Disconnect only the CH1 load, allow Voc to settle, average five
   // CH1 readings, and reconnect it before any Serial output.
   setLoadsConnected(false);
@@ -644,6 +649,7 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("Averaged Isc (5 samples)"));
   printMeasurements(F("ISC"), iscShuntVoltageMV, iscBusVoltageV, iscCurrentMA,
                     ALL_CHANNELS);
+ #endif
 #endif
   displayDirty = true;
 
