@@ -1,3 +1,17 @@
+/*
+  PhotoVoltaic 2026 - combined-display version
+
+  Includes:
+  - Four INA219 channels at 0x40, 0x41, 0x44 and 0x45.
+  - Loaded, open-circuit and short-circuit measurements.
+  - MOSFET load/short switching with dead-time interlock.
+  - Averaged OC and SC readings, plus CSV logging to pv_iv.csv.
+  - Five LCD screens: loaded CH1-CH2, loaded CH3-CH4,
+    combined SC current + OC voltage for CH1-CH2,
+    combined SC current + OC voltage for CH3-CH4,
+    and LDR/date/time.
+*/
+
 //-----libraries-------
 #define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
