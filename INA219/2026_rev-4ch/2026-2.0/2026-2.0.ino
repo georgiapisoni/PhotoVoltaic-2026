@@ -420,27 +420,22 @@ void drawDisplay()
   lcd.clear();
 
   if (screen == 0) {
-    drawMeasurementRow(0, 0, 1, F("C"), currentMA, busVoltageV);
-    drawMeasurementRow(1, 1, 2, F("C"), currentMA, busVoltageV);
+    drawMeasurementRow(0, 0, 1, F("LC"), currentMA, busVoltageV);
+    drawMeasurementRow(1, 1, 2, F("LC"), currentMA, busVoltageV);
   } else if (screen == 1) {
-    drawMeasurementRow(0, 2, 3, F("C"), currentMA, busVoltageV);
-    drawMeasurementRow(1, 3, 4, F("C"), currentMA, busVoltageV);
+    drawMeasurementRow(0, 2, 3, F("LC"), currentMA, busVoltageV);
+    drawMeasurementRow(1, 3, 4, F("LC"), currentMA, busVoltageV);
   } else if (screen == 2) {
-    drawMeasurementRow(0, 0, 1, F("OC"), ocCurrentMA, ocBusVoltageV,
+    // Combined result: short-circuit current and open-circuit voltage.
+    drawMeasurementRow(0, 0, 1, F("C"), iscCurrentMA, ocBusVoltageV,
                        OC_CHANNEL_ENABLED[0]);
-    drawMeasurementRow(1, 1, 2, F("OC"), ocCurrentMA, ocBusVoltageV,
+    drawMeasurementRow(1, 1, 2, F("C"), iscCurrentMA, ocBusVoltageV,
                        OC_CHANNEL_ENABLED[1]);
   } else if (screen == 3) {
-    drawMeasurementRow(0, 2, 3, F("OC"), ocCurrentMA, ocBusVoltageV,
+    drawMeasurementRow(0, 2, 3, F("C"), iscCurrentMA, ocBusVoltageV,
                        OC_CHANNEL_ENABLED[2]);
-    drawMeasurementRow(1, 3, 4, F("OC"), ocCurrentMA, ocBusVoltageV,
+    drawMeasurementRow(1, 3, 4, F("C"), iscCurrentMA, ocBusVoltageV,
                        OC_CHANNEL_ENABLED[3]);
-  } else if (screen == 4) {
-    drawMeasurementRow(0, 0, 1, F("SC"), iscCurrentMA, iscBusVoltageV);
-    drawMeasurementRow(1, 1, 2, F("SC"), iscCurrentMA, iscBusVoltageV);
-  } else if (screen == 5) {
-    drawMeasurementRow(0, 2, 3, F("SC"), iscCurrentMA, iscBusVoltageV);
-    drawMeasurementRow(1, 3, 4, F("SC"), iscCurrentMA, iscBusVoltageV);
   } else {
     drawLdrScreen();
   }
@@ -451,7 +446,7 @@ void displayTask()
   if (millis() - lastScreenSwitch >= screenInterval) {
     lastScreenSwitch = millis();
 #if ENABLE_INA219
-    screen = (screen + 1) % 7;
+    screen = (screen + 1) % 5;
 #else
     screen = 0;
 #endif
