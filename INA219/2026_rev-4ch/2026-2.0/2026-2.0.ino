@@ -48,7 +48,7 @@ const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 // Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
 const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
-const bool OC_CHANNEL_ENABLED[4]        = {true, false, false, false};
+const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
 const unsigned long ISC_SETTLE_MS       = 250;
 const uint8_t MEASUREMENT_SAMPLE_COUNT  = 5;
