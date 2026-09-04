@@ -180,8 +180,8 @@ void setLoadsConnected(bool connected)
     digitalWrite(LOAD_GATE_PINS[i], loadConnected ? HIGH : LOW);
   }
 
-  Serial.println(connected ? F("CH1 load connected")
-                           : F("CH1 load disconnected (open circuit)"));
+  Serial.println(connected ? F("All loads connected")
+                           : F("All loads disconnected (open circuit)"));
   Serial.flush();
 }
 
@@ -617,8 +617,8 @@ void Leitura(const tmElements_t &time)
   Serial.println(F("%"));
 
 #if ENABLE_INA219
-  // Disconnect only the CH1 load, allow Voc to settle, average five
-  // CH1 readings, and reconnect it before any Serial output.
+  // Disconnect all loads, allow Voc to settle, average five readings,
+  // and reconnect them before any Serial output.
   setLoadsConnected(false);
   lcd.clear();
   lcd.setCursor(0, 0);
