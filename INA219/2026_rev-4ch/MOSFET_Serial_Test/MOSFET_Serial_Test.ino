@@ -10,6 +10,8 @@ const bool MOSFET_OUTPUTS_ENABLED = false; // serial-only diagnostic mode
 bool shortState[4] = {false, false, false, false};
 bool loadState[4]  = {true, true, true, true};
 String command;
+unsigned long lastHeartbeat = 0;
+const unsigned long HEARTBEAT_INTERVAL_MS = 1000;
 
 void printStatus()
 {
@@ -121,6 +123,11 @@ void setup()
 
 void loop()
 {
+  if (millis() - lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {
+    lastHeartbeat = millis();
+    Serial.println(F("alive"));
+  }
+
   while (Serial.available()) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
