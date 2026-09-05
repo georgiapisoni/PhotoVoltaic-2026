@@ -5,6 +5,7 @@
 const uint8_t SHORT_PINS[4] = {5, 4, 3, 2}; // CH1..CH4
 const uint8_t LOAD_PINS[4]  = {9, 8, 7, 6}; // CH1..CH4
 const unsigned long DEAD_TIME_MS = 10;
+const bool MOSFET_OUTPUTS_ENABLED = false; // serial-only diagnostic mode
 
 bool shortState[4] = {false, false, false, false};
 bool loadState[4]  = {true, true, true, true};
@@ -26,6 +27,10 @@ void printStatus()
 void setChannel(uint8_t channel, char type, bool enabled)
 {
   if (channel >= 4) return;
+  if (!MOSFET_OUTPUTS_ENABLED) {
+    Serial.println(F("MOSFET outputs disabled; command not applied."));
+    return;
+  }
 
   if (type == 'S') {
     if (enabled) {
@@ -53,6 +58,10 @@ void setChannel(uint8_t channel, char type, bool enabled)
 
 void allOff()
 {
+  if (!MOSFET_OUTPUTS_ENABLED) {
+    Serial.println(F("MOSFET outputs disabled; no pins changed."));
+    return;
+  }
   for (uint8_t i = 0; i < 4; i++) {
     digitalWrite(SHORT_PINS[i], LOW);
     digitalWrite(LOAD_PINS[i], LOW);
@@ -97,11 +106,13 @@ void processCommand(String text)
 void setup()
 {
   Serial.begin(9600);
-  for (uint8_t i = 0; i < 4; i++) {
-    pinMode(SHORT_PINS[i], OUTPUT);
-    pinMode(LOAD_PINS[i], OUTPUT);
-    digitalWrite(SHORT_PINS[i], LOW);
-    digitalWrite(LOAD_PINS[i], HIGH);
+  if (MOSFET_OUTPUTS_ENABLED) {
+    for (uint8_t i = 0; i < 4; i++) {
+      pinMode(SHORT_PINS[i], OUTPUT);
+      pinMode(LOAD_PINS[i], OUTPUT);
+      digitalWrite(SHORT_PINS[i], LOW);
+      digitalWrite(LOAD_PINS[i], HIGH);
+    }
   }
   Serial.println(F("4-channel MOSFET serial test"));
   printHelp();
