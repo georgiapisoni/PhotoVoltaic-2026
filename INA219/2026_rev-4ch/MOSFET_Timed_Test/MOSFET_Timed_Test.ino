@@ -1,6 +1,6 @@
 // Standalone timed MOSFET test.
 // No Serial commands, I2C, RTC, LCD, INA219, or SD card are required.
-// Only each short MOSFET is activated one at a time; load MOSFETs stay OFF.
+// Each load/open-circuit and short MOSFET is activated one at a time.
 
 const uint8_t SHORT_PINS[4] = {5, 4, 3, 2}; // CH1..CH4
 const uint8_t LOAD_PINS[4]  = {9, 8, 7, 6}; // CH1..CH4
@@ -68,7 +68,7 @@ void setup()
 {
   Serial.begin(9600);
   Serial.println(F("Timed MOSFET test starting"));
-  Serial.println(F("Short-only stages: 5 s; load MOSFETs remain OFF"));
+  Serial.println(F("Load stages: 15 s; short stages: 5 s"));
   pinMode(LED_PIN, OUTPUT);
   for (uint8_t i = 0; i < 4; i++) {
     pinMode(SHORT_PINS[i], OUTPUT);
@@ -80,7 +80,9 @@ void setup()
 
 void loop()
 {
-  Serial.println(F("--- SHORT-ONLY TESTS ---"));
+  Serial.println(F("--- LOAD/OPEN TESTS ---"));
+  for (uint8_t i = 0; i < 4; i++) testLoad(i);
+  Serial.println(F("--- SHORT TESTS ---"));
   for (uint8_t i = 0; i < 4; i++) testShort(i);
   allOff();
   Serial.println(F("Cycle complete; all MOSFET outputs OFF"));
