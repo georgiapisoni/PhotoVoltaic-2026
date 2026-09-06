@@ -61,6 +61,8 @@ const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 
 // Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
 const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
+// Test-branch option: leave the load/open-circuit MOSFETs connected.
+const bool OC_MOSFET_CONTROL_ENABLED   = false;
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -175,6 +177,13 @@ void setShortCircuit(bool enabled)
 
 void setLoadsConnected(bool connected)
 {
+  if (!OC_MOSFET_CONTROL_ENABLED) {
+    Serial.println(connected ? F("OC MOSFETs disabled; loads remain connected")
+                             : F("OC MOSFETs disabled; loads remain connected"));
+    Serial.flush();
+    return;
+  }
+
   for (uint8_t i = 0; i < 4; i++) {
     bool loadConnected = OC_CHANNEL_ENABLED[i] ? connected : true;
     digitalWrite(LOAD_GATE_PINS[i], loadConnected ? HIGH : LOW);
