@@ -16,7 +16,8 @@
 #define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
 #define ENABLE_RTC      1 // DS1307 clock enabled.
-const bool MOSFET_CONTROL_ENABLED = false; // Disabled for LCD/I2C isolation test.
+const bool MOSFET_CONTROL_ENABLED = true;  // Enable short MOSFET testing.
+const bool LOAD_MOSFET_CONTROL_ENABLED = false; // OC/load MOSFETs disconnected.
 
 #include <Adafruit_INA219.h>
 #include <DS1307RTC.h>
@@ -161,7 +162,7 @@ void setShortCircuit(bool enabled)
     // Disconnect every load before enabling its parallel shorting MOSFET.
     for (uint8_t i = 0; i < 4; i++) {
       digitalWrite(MOSFET_GATE_PINS[i], LOW);
-      digitalWrite(LOAD_GATE_PINS[i], LOW);
+      if (LOAD_MOSFET_CONTROL_ENABLED) digitalWrite(LOAD_GATE_PINS[i], LOW);
     }
     delay(MOSFET_DEAD_TIME_MS);
     for (uint8_t i = 0; i < 4; i++) {
@@ -174,7 +175,7 @@ void setShortCircuit(bool enabled)
     }
     delay(MOSFET_DEAD_TIME_MS);
     for (uint8_t i = 0; i < 4; i++) {
-      digitalWrite(LOAD_GATE_PINS[i], HIGH);
+      if (LOAD_MOSFET_CONTROL_ENABLED) digitalWrite(LOAD_GATE_PINS[i], HIGH);
     }
   }
 
@@ -185,7 +186,7 @@ void setShortCircuit(bool enabled)
 
 void setLoadsConnected(bool connected)
 {
-  if (!MOSFET_CONTROL_ENABLED) {
+  if (!LOAD_MOSFET_CONTROL_ENABLED) {
     Serial.println(F("MOSFET control disabled; load state unchanged"));
     Serial.flush();
     return;
@@ -222,9 +223,11 @@ void setup(){
       digitalWrite(MOSFET_GATE_PINS[i], LOW);
       pinMode(MOSFET_GATE_PINS[i], OUTPUT);
 
-      // HIGH is the normal state for the series load switches.
-      digitalWrite(LOAD_GATE_PINS[i], HIGH);
-      pinMode(LOAD_GATE_PINS[i], OUTPUT);
+      if (LOAD_MOSFET_CONTROL_ENABLED) {
+        // HIGH is the normal state for the series load switches.
+        digitalWrite(LOAD_GATE_PINS[i], HIGH);
+        pinMode(LOAD_GATE_PINS[i], OUTPUT);
+      }
       Serial.print(F("MOSFET pins configured for CH"));
       Serial.println(i + 1);
       Serial.flush();
