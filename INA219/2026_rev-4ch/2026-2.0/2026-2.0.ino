@@ -15,6 +15,7 @@
 //-----libraries-------
 #define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
+#define ENABLE_RTC      0 // Clock disabled for hardware isolation testing.
 
 #include <Adafruit_INA219.h>
 #include <DS1307RTC.h>
@@ -280,6 +281,7 @@ void setup(){
     while (1);
   }
   showStartupStep(F("RTC test"), F("Testando RTC"));
+#if ENABLE_RTC
   if (RTC.read(time))
   {
     lastMin = time.Minute;
@@ -294,6 +296,9 @@ void setup(){
     lcd.print(F("Erro RTC"));
     while (1);
   }
+#else
+  Serial.println(F("RTC disabled for test"));
+#endif
   Serial.println(F("Opening CSV"));
   Serial.flush();
   //SD FILE setup
@@ -324,9 +329,10 @@ void setup(){
 
 void loop()
 {
-  tmElements_t time;
+  tmElements_t time = {};
   displayTask();
 
+#if ENABLE_RTC
   if (RTC.read(time))
   {
     displayTime = time;
@@ -340,6 +346,9 @@ void loop()
   }
   else
   {Serial.println(F("Failed to read RTC"));}
+#else
+  // No clock access while isolating hardware; the startup reading remains active.
+#endif
 }
 void printFixed2_1(float value)
 {
