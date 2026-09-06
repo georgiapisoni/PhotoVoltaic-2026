@@ -15,7 +15,7 @@
 //-----libraries-------
 #define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
-#define ENABLE_RTC      0 // Clock disabled for hardware isolation testing.
+#define ENABLE_RTC      1 // DS1307 clock enabled.
 
 #include <Adafruit_INA219.h>
 #include <DS1307RTC.h>
@@ -198,8 +198,12 @@ void setLoadsConnected(bool connected)
 void setup(){
   tmElements_t time;
   Serial.begin(9600);
+  Serial.println(F("BOOT: Serial started"));
+  Serial.flush();
 
   // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
+  Serial.println(F("CHECKPOINT: before MOSFET pin setup"));
+  Serial.flush();
   for (uint8_t i = 0; i < 4; i++) {
     digitalWrite(MOSFET_GATE_PINS[i], LOW);
     pinMode(MOSFET_GATE_PINS[i], OUTPUT);
@@ -207,11 +211,21 @@ void setup(){
     // HIGH is the normal state for the series load switches.
     digitalWrite(LOAD_GATE_PINS[i], HIGH);
     pinMode(LOAD_GATE_PINS[i], OUTPUT);
+    Serial.print(F("MOSFET pins configured for CH"));
+    Serial.println(i + 1);
+    Serial.flush();
   }
+  Serial.println(F("CHECKPOINT: after MOSFET pin setup"));
+  Serial.flush();
 
+  Serial.println(F("CHECKPOINT: before Wire.begin"));
   Wire.begin();
+  Serial.println(F("CHECKPOINT: after Wire.begin"));
+  Serial.flush();
 
+  Serial.println(F("CHECKPOINT: before LCD init"));
   lcd.init();
+  Serial.println(F("CHECKPOINT: after LCD init"));
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -282,6 +296,7 @@ void setup(){
   }
   showStartupStep(F("RTC test"), F("Testando RTC"));
 #if ENABLE_RTC
+  Serial.println(F("CHECKPOINT: before RTC read"));
   if (RTC.read(time))
   {
     lastMin = time.Minute;
