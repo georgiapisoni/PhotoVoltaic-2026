@@ -57,8 +57,8 @@ const float CURRENT_SCALE = 2.0;
 const uint8_t chipSelect = 10; //sd card reader -> CS[D10]
 const uint8_t LDR_PIN    = A0; //light sensor -> A0=D14
 
-// Only the CH4 short-circuit MOSFET is connected for this hardware test.
-const uint8_t CH4_SHORT_GATE_PIN        = 2;
+// Only CH3 and CH4 short-circuit MOSFETs are connected for this hardware test.
+const uint8_t SHORT_GATE_PINS[2]        = {3, 2}; // CH3, CH4
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -146,16 +146,16 @@ void scanI2CBus()
 void setShortCircuit(bool enabled)
 {
   if (enabled) {
-    digitalWrite(CH4_SHORT_GATE_PIN, LOW);
+    for (uint8_t i = 0; i < 2; i++) digitalWrite(SHORT_GATE_PINS[i], LOW);
     delay(MOSFET_DEAD_TIME_MS);
-    digitalWrite(CH4_SHORT_GATE_PIN, HIGH);
+    for (uint8_t i = 0; i < 2; i++) digitalWrite(SHORT_GATE_PINS[i], HIGH);
   } else {
-    digitalWrite(CH4_SHORT_GATE_PIN, LOW);
+    for (uint8_t i = 0; i < 2; i++) digitalWrite(SHORT_GATE_PINS[i], LOW);
     delay(MOSFET_DEAD_TIME_MS);
   }
 
-  Serial.println(enabled ? F("CH4 short circuit ON")
-                         : F("CH4 short circuit OFF"));
+  Serial.println(enabled ? F("CH3/CH4 short circuits ON")
+                         : F("CH3/CH4 short circuits OFF"));
   Serial.flush();
 }
 
@@ -175,9 +175,11 @@ void setup(){
   // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
   Serial.println(F("CHECKPOINT: before MOSFET pin setup"));
   Serial.flush();
-  digitalWrite(CH4_SHORT_GATE_PIN, LOW);
-  pinMode(CH4_SHORT_GATE_PIN, OUTPUT);
-  Serial.println(F("Only CH4 short MOSFET configured on D2"));
+  for (uint8_t i = 0; i < 2; i++) {
+    digitalWrite(SHORT_GATE_PINS[i], LOW);
+    pinMode(SHORT_GATE_PINS[i], OUTPUT);
+  }
+  Serial.println(F("Only CH3/CH4 short MOSFETs configured on D3/D2"));
   Serial.println(F("CHECKPOINT: after MOSFET pin setup"));
   Serial.flush();
 
