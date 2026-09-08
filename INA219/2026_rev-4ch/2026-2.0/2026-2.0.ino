@@ -57,9 +57,9 @@ const float CURRENT_SCALE = 2.0;
 const uint8_t chipSelect = 10; //sd card reader -> CS[D10]
 const uint8_t LDR_PIN    = A0; //light sensor -> A0=D14
 
-// Only the CH2 short-circuit MOSFET is connected for this hardware test.
-const uint8_t SHORT_GATE_PINS[1]        = {4}; // CH2
-const uint8_t SHORT_GATE_PIN_COUNT      = 1;
+// All four short-circuit MOSFETs are connected for this hardware test.
+const uint8_t SHORT_GATE_PINS[4]        = {5, 4, 3, 2}; // CH1..CH4
+const uint8_t SHORT_GATE_PIN_COUNT      = 4;
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -155,8 +155,8 @@ void setShortCircuit(bool enabled)
     delay(MOSFET_DEAD_TIME_MS);
   }
 
-  Serial.println(enabled ? F("CH2 short circuit ON")
-                         : F("CH2 short circuit OFF"));
+  Serial.println(enabled ? F("CH1-CH4 short circuits ON")
+                         : F("CH1-CH4 short circuits OFF"));
   Serial.flush();
 }
 
@@ -180,7 +180,7 @@ void setup(){
     digitalWrite(SHORT_GATE_PINS[i], LOW);
     pinMode(SHORT_GATE_PINS[i], OUTPUT);
   }
-  Serial.println(F("Only CH2 short MOSFET configured on D4"));
+  Serial.println(F("CH1-CH4 short MOSFETs configured on D5-D2"));
   Serial.println(F("CHECKPOINT: after MOSFET pin setup"));
   Serial.flush();
 
