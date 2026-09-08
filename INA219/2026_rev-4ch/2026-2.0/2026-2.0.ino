@@ -66,6 +66,7 @@ const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
 const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
 // Test-branch option: leave the load/open-circuit MOSFETs connected.
 const bool OC_MOSFET_CONTROL_ENABLED   = false;
+const bool SHORT_CHANNEL_ENABLED[4]    = {false, true, true, true}; // CH1 disabled.
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -161,17 +162,17 @@ void setShortCircuit(bool enabled)
   if (enabled) {
     // Disconnect every load before enabling its parallel shorting MOSFET.
     for (uint8_t i = 0; i < 4; i++) {
-      digitalWrite(MOSFET_GATE_PINS[i], LOW);
+      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], LOW);
       if (LOAD_MOSFET_CONTROL_ENABLED) digitalWrite(LOAD_GATE_PINS[i], LOW);
     }
     delay(MOSFET_DEAD_TIME_MS);
     for (uint8_t i = 0; i < 4; i++) {
-      digitalWrite(MOSFET_GATE_PINS[i], HIGH);
+      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], HIGH);
     }
   } else {
     // Remove every short before reconnecting the corresponding load.
     for (uint8_t i = 0; i < 4; i++) {
-      digitalWrite(MOSFET_GATE_PINS[i], LOW);
+      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], LOW);
     }
     delay(MOSFET_DEAD_TIME_MS);
     for (uint8_t i = 0; i < 4; i++) {
@@ -220,8 +221,10 @@ void setup(){
   Serial.flush();
   if (MOSFET_CONTROL_ENABLED) {
     for (uint8_t i = 0; i < 4; i++) {
-      digitalWrite(MOSFET_GATE_PINS[i], LOW);
-      pinMode(MOSFET_GATE_PINS[i], OUTPUT);
+      if (SHORT_CHANNEL_ENABLED[i]) {
+        digitalWrite(MOSFET_GATE_PINS[i], LOW);
+        pinMode(MOSFET_GATE_PINS[i], OUTPUT);
+      }
 
       if (LOAD_MOSFET_CONTROL_ENABLED) {
         // HIGH is the normal state for the series load switches.
