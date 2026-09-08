@@ -16,8 +16,6 @@
 #define ENABLE_INA219   1 // INA219 measurement system enabled.
 #define ENABLE_I2C_SCAN 0 // Set to 1 temporarily when diagnosing the I2C bus.
 #define ENABLE_RTC      1 // DS1307 clock enabled.
-const bool MOSFET_CONTROL_ENABLED = true;  // Enable short MOSFET testing.
-const bool LOAD_MOSFET_CONTROL_ENABLED = false; // OC/load MOSFETs disconnected.
 
 #include <Adafruit_INA219.h>
 #include <DS1307RTC.h>
@@ -59,14 +57,8 @@ const float CURRENT_SCALE = 2.0;
 const uint8_t chipSelect = 10; //sd card reader -> CS[D10]
 const uint8_t LDR_PIN    = A0; //light sensor -> A0=D14
 
-// Array order is CH1, CH2, CH3, CH4.
-const uint8_t MOSFET_GATE_PINS[4] = {5, 4, 3, 2};
-
-// Series load MOSFET gates: HIGH connects the load, LOW opens the circuit.
-const uint8_t LOAD_GATE_PINS[4]         = {9, 8, 7, 6};
-// Test-branch option: leave the load/open-circuit MOSFETs connected.
-const bool OC_MOSFET_CONTROL_ENABLED   = false;
-const bool SHORT_CHANNEL_ENABLED[4]    = {false, true, true, true}; // CH1 disabled.
+// Only the CH4 short-circuit MOSFET is connected for this hardware test.
+const uint8_t CH4_SHORT_GATE_PIN        = 2;
 const bool ALL_CHANNELS[4]              = {true, true, true, true};
 const bool OC_CHANNEL_ENABLED[4]        = {true, true, true, true};
 const unsigned long OC_SETTLE_MS        = 250;
@@ -153,60 +145,24 @@ void scanI2CBus()
 
 void setShortCircuit(bool enabled)
 {
-  if (!MOSFET_CONTROL_ENABLED) {
-    Serial.println(F("MOSFET control disabled; short state unchanged"));
-    Serial.flush();
-    return;
-  }
-
   if (enabled) {
-    // Disconnect every load before enabling its parallel shorting MOSFET.
-    for (uint8_t i = 0; i < 4; i++) {
-      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], LOW);
-      if (LOAD_MOSFET_CONTROL_ENABLED) digitalWrite(LOAD_GATE_PINS[i], LOW);
-    }
+    digitalWrite(CH4_SHORT_GATE_PIN, LOW);
     delay(MOSFET_DEAD_TIME_MS);
-    for (uint8_t i = 0; i < 4; i++) {
-      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], HIGH);
-    }
+    digitalWrite(CH4_SHORT_GATE_PIN, HIGH);
   } else {
-    // Remove every short before reconnecting the corresponding load.
-    for (uint8_t i = 0; i < 4; i++) {
-      if (SHORT_CHANNEL_ENABLED[i]) digitalWrite(MOSFET_GATE_PINS[i], LOW);
-    }
+    digitalWrite(CH4_SHORT_GATE_PIN, LOW);
     delay(MOSFET_DEAD_TIME_MS);
-    for (uint8_t i = 0; i < 4; i++) {
-      if (LOAD_MOSFET_CONTROL_ENABLED) digitalWrite(LOAD_GATE_PINS[i], HIGH);
-    }
   }
 
-  Serial.println(enabled ? F("Short circuit ON; loads OFF")
-                         : F("Short circuit OFF; loads ON"));
+  Serial.println(enabled ? F("CH4 short circuit ON")
+                         : F("CH4 short circuit OFF"));
   Serial.flush();
 }
 
 void setLoadsConnected(bool connected)
 {
-  if (!LOAD_MOSFET_CONTROL_ENABLED) {
-    Serial.println(F("MOSFET control disabled; load state unchanged"));
-    Serial.flush();
-    return;
-  }
-
-  if (!OC_MOSFET_CONTROL_ENABLED) {
-    Serial.println(connected ? F("OC MOSFETs disabled; loads remain connected")
-                             : F("OC MOSFETs disabled; loads remain connected"));
-    Serial.flush();
-    return;
-  }
-
-  for (uint8_t i = 0; i < 4; i++) {
-    bool loadConnected = OC_CHANNEL_ENABLED[i] ? connected : true;
-    digitalWrite(LOAD_GATE_PINS[i], loadConnected ? HIGH : LOW);
-  }
-
-  Serial.println(connected ? F("All loads connected")
-                           : F("All loads disconnected (open circuit)"));
+  (void)connected;
+  Serial.println(F("OC MOSFET pins not configured; loads unchanged"));
   Serial.flush();
 }
 
@@ -219,25 +175,9 @@ void setup(){
   // LOW is the safe/normal loaded state for the parallel IRLZ44N switches.
   Serial.println(F("CHECKPOINT: before MOSFET pin setup"));
   Serial.flush();
-  if (MOSFET_CONTROL_ENABLED) {
-    for (uint8_t i = 0; i < 4; i++) {
-      if (SHORT_CHANNEL_ENABLED[i]) {
-        digitalWrite(MOSFET_GATE_PINS[i], LOW);
-        pinMode(MOSFET_GATE_PINS[i], OUTPUT);
-      }
-
-      if (LOAD_MOSFET_CONTROL_ENABLED) {
-        // HIGH is the normal state for the series load switches.
-        digitalWrite(LOAD_GATE_PINS[i], HIGH);
-        pinMode(LOAD_GATE_PINS[i], OUTPUT);
-      }
-      Serial.print(F("MOSFET pins configured for CH"));
-      Serial.println(i + 1);
-      Serial.flush();
-    }
-  } else {
-    Serial.println(F("MOSFET control disabled; pins left untouched"));
-  }
+  digitalWrite(CH4_SHORT_GATE_PIN, LOW);
+  pinMode(CH4_SHORT_GATE_PIN, OUTPUT);
+  Serial.println(F("Only CH4 short MOSFET configured on D2"));
   Serial.println(F("CHECKPOINT: after MOSFET pin setup"));
   Serial.flush();
 
